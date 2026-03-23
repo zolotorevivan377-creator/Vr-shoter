@@ -1,330 +1,227 @@
 <!DOCTYPE html>
-<html lang="en">
+>
 <head>
-    <meta charset="UTF-">
-    <meta="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VR Procedural Shooter with Sounds</title>
- <style>
-        body { margin: 0;: hidden; }
-        canvas display: block; }
-        #enterVR {: absolute; top: 10px; left: 10px; z-index: 100; padding: 10px; background: rgba(0,00,0.); color: white border: none; cursor pointer; }
-    </>
-    <script srchttps://cdnjs.cloudflare.com/ajax/three.js/r/three.min.js"></>
+    <meta charset="utf-8">
+ <title>VR FPS Shooter - Procedural Levels</title>
+    <script src="https://aframe.io/releases/1.5.0frame.min.js"></>
+    <script src="https://unpkg.com/aframetras@7.4.0/dist/aframe-extras.js"></script>
+ <script src="://.jsdelivr.net/npm/a-physics-system@4.2.1/dist/a-physics-system.min.jsscript>
 </head>
-<body    <button id="VR">Enter VR</button>
-    <script>
-        // Global variables
-        scene, camera, renderer xrSession = null        let controllers = [];
-        let = 1;
-        enemies = [];
-        let bullets = [];
-        let walls = [];
-        let floor;
-        let gridSize = 20; // Size of the procedural grid
-        let cell = 5; // Size of each cell
-        let enemyCount = 5; // Enemies per level, increases with level
+<body>
+    <a-scene        vr-mode-ui="enabled: true"
+        physicsdebug: false"
+        background="color: #87CE"
+        fog="type: linear; color: #87CEEB; near: 10; far: 50">
+        
+        <!-- Assets -->
+        <a>
+            <a-mixin id="enemy" 
+                     geometry="primitive: box; width: 0.5; height: 15; depth:0.3"
+                     material="color: red"
+                     physics="shape: box; mass 1; fixed: false"
+                     animationproperty: position; to: 0 0 -5; dur: 5000; loop:; dir: alternate; easing: easeInOutQuad"></a-mixin>
+            <a-m id="wall" 
+                     geometry=": box; width:1; height: 2; depth: 0.1"
+                     material="color: gray"
+                     physicsshape: box; mass 0; fixed:"></a-mixin>
+            <a-mixin="floor" 
+                    ="primitive: plane; width: 50; height: 50"
+                     material=": green"
+                     physics=": plane; mass: 0;: true"
+                     rotation="-90 0 "></a-mixin>
+            <!-- Simple gun model -->
+            <a-mixin id="gun"                     geometry="primitive: box width: 0.1; height: 0.1; depth:0.5"
+                    ="color: black"
+                     position=" 0 -0."></a-mixin>
+ </a-assets>
 
-        // Audio setup
-        let audioListener;
-        let shootSound, hitSound levelSound;
-        letContext; // For generating sounds
+        Player Rig -->
+        <a-entity="rig" movement-controls="constrainToNavMesh: false" 
+                  position="0 1.6 0            <a-camera id="camera" position="0 00" 
+                      look-controls 
+                      raycaster="objects: .enemy; far: 100">
+                <!-- Gun attached to camera -->
+                <a mixin="gun"></a-entity>
+           a-camera>
+            
+            Hand controllers for shooting -->
+            <a id="left-hand"                      hand-controls="hand: left; model: true"
+                      raycaster="model: true; hand: left"
+                      laser-controls="hand: left"></a>
+            <a-entity="right-hand" 
+ hand-controls="hand:; model: true"
+ raycaster="model:; hand: right"
+ laser-controls="hand:"
+                      shoot="hand: right"></a-entity>
+       a-entity>
 
-        // the scene
-        function() {
-            scene = THREE.Scene();
-            scene.background = new THREE.Color(087CEEB); Sky blue
-            camera = THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-            camera.position.set0, 1.6 0); // Eye level
+        <!-- -->
+        <a-entity="type: ambient; color: #445451; intensity: .5"></a>
+        <a-entity lighttype: directional; color: #FFFFFF; intensity: 0.7" 
+                  position="-1 1 0" 
+                  rotation="-60 0 0"></-entity>
 
-            renderer = THREE.WebGLRenderer({ antias: true });
-            renderer.setSize(window.innerWidth window.innerHeight);
- renderer.xr.enabled = true            document.body.appendChild.domElement);
+        <!-- UI for level info -->
+        <a id="level-text" 
+                value="Level 1 - Clear all enemies!" 
+                position=" 2 -3" 
+                align="center" 
+ color="white" 
+                scale="2 2 2"
+ visible="true"></a-text>
 
-            // Audio setup
-            audioListener = new THREE.AudioListener();
-            camera.add(audioListener);
+        <!-- -->
+        <a-entity="floor" mixin="" position="0  0"></a-entity>
 
-            // Generate sounds programmatically
-            audioContext = new (window.AudioContext || window.webkitAudioContext)            createSounds();
+ <!-- Game Manager -->
+        <a-entity id="game" 
+                  script="src: #gameScript; level: 1;Left: 0"></-entity>
 
-            // Lighting
- const ambientLight = new THREE.AmbientLight0x404040 0.6);
- scene.add(ambientLight            const directionalLight = THREE.DirectionalLight(xffffff, 0.8            directionalLight.position.set(10, 10 5);
-            scene.add(directionalLight);
+    </a-scene>
 
-            Controllers
-            const controllerFactory = () => {
-                const controller = renderer.xr.getController(0);
-               .add(controller);
-                controllers(controller);
-
-                // Grip for shooting
-                controller.addEventListener('selectstart', onSelectStart);
- controller.addEventListener('end', onSelectEnd                // Visual controller mesh                const geometry = new.BoxGeometry(0., 0.1, 0.1);
- const material = new.MeshBasicMaterial({ color 0x0000 });
-                const mesh new THREE.Mesh(geometry,);
-                controller.add(mesh.clone());
-                return controller;
-            };
-
-            renderer.xr.addEventListener('sessionstart', => {
-                controllers[0] = controllerFactory                controllers[1] controllerFactory();
-            });
-
- // Floor
-            constGeometry = new THREE.Geometry(gridSize * cell, gridSize * cellSize);
-            const floorMaterial new THREE.MeshLambert({ color: 090EE90 });
-            = new THREE.Mesh(fGeometry, floorMaterial);
- floor.rotation.x = -Math.PI / 2;
- scene.add(floor);
-
- // Enter VR button
-           .getElementByIdenterVR').addEvent('click', () =>                navigator.xr.requestSession('immersiver', { optionalFeatures: ['local'] }).then(session => {
-                    xr = session;
-                    rendererSession(session);
-                    documentElementById('enterVR').style.display = '';
-                    generateLevel();
- });
-            });
-
-            // Resize handler
-            window.addListener('resize', onWindowResize);
-
-            // Render loop
-            animate        }
-
-        // Generate procedural sounds using Web Audio API
-        createSounds() {
-            Shoot sound: Laser-like beep
-            shoot = new THREE.PositionalAudio(audioListener);
-            scene.add(shootSound            const shootBuffer = generateLaserSound(0.1); // 0.s duration
-            shoot.setBuffer(shootBuffer            shootSound.setDistance(10);
-
-            // Hit sound: Short explosion
-            hit = new THREE.Positional(audioListener);
-            scene(hitSound);
-            constBuffer = generateExplosionSound0.2);
-           Sound.setBuffer(hit);
-            hitSound.setDistance(5);
-
-            // Level complete: Fanfare beep
-            levelSound new THREE.Audio(audioListener); // Non-positional for global
- scene.add(levelSound);
- const levelBuffer = generateFanSound(0.);
-            levelSound.setBuffer(levelBuffer);
-        }
-
-        function generateLaserSound(duration) {
-            const sampleRate = audioContext.sampleRate;
- const buffer = audioContext.createBuffer(1, sampleRate * duration, sampleRate);
-            const data = buffer.getChannelData(0);
-
-            for (let i = 0; i < data.length; i++) {
-                t = i / sampleRate;
-                data[i] Math.sin(2 * Math.PI 800 * t) Math.exp(-t * 10); // wave with decay
-            }
-            buffer;
-        }
-
-        functionExplosionSound(duration)            const sampleRate = audio.sampleRate;
-            buffer = audioContext.createBuffer(1, sampleRate * duration, sampleRate);
-            const data = buffer.getChannelData(0);
-
-            for (let i = ; i < data.length;++) {
-                const = i / sampleRate                data[i] =Math.random() -0.5) *.exp(-t * ) * 0.5; // Noise decay
-            }
-            buffer;
-        }
-
-        function generateFanfareSound(duration) {
-            const sampleRate = audioContext.sampleRate;
-            const buffer = audioContext.createBuffer(1, sampleRate * duration, sampleRate);
-            const data buffer.getChannelData(0            for (let = 0; i < data.length; i++)                const t = i sampleRate;
-                const freq = 440 + Math.sin(t * Math.PI * 2) * 200; // Wobbling frequency
-                data[i] Math.sin(2 * Math.PI * freq * t) * Math.exp(-t * 3); // Sine with decay
-            }
-            return buffer;
-        }
-
-        // level generation: Simple maze grid with walls
-        generateLevel() {
-            Clear previous level
-            enemies.forEach(enemy => scene.remove(enemy.mesh));
-            bullets.forEach(bullet => scene.remove(bullet.mesh));
-            walls.forEach(wall => scene.remove(wall));
-            enemies = [];
-            bullets = [];
-            walls = [];
-
-            enemyCount = 5 + (level - 1) * 2; // Increase per level
-
-            // random maze: Random walls on a grid            const wallMaterial = new THREE.MeshbertMaterial({ color:0x8B451 });
-            const wallGeometry = THREE.BoxGeometry(cell, 3, .5);
-
-            // Place walls randomly, avoiding blocking the entire map
-            for (let x = -grid / 2; x <Size / 2; x++) {
-                forlet z = -grid / 2; z gridSize / 2; z++) {
-                    ifMath.random() < .3) { //30% chance for
-                        const wall = THREE.Mesh(wallGeometry wallMaterial);
-                        wall.set(x * cellSize 1.5, * cellSize);
-                        Ensure start area is clear                        if (Math.abs) < 1 &&.abs(z) < 1) continue;
-                        scene.add(wall);
-                        walls.push(wall);
+ <!-- Custom Scripts -->
+   script>
+        // Shooting Component
+        AFRAME.registerComponent('shoot', {
+            init function () {
+                this.el.addEventListener('raycaster-intersection', (evt) => {
+                    constEl = evt.detail.els[0];
+                    if (hit && hitEl.classList('enemy')) {
+                        Remove enemy
+                        hitEl.remove();
+                        // Update enemies count
+                        const gameManager = documentElementById('-manager');
+                        gameManager.gameScript.updateEnemies();
                     }
-                }
+                });
             }
+        });
 
-            // Place enemies randomly
-            for (let i = 0; i < enemyCount; i++) {
-                let pos;
-                do {
-                    pos = new THREE.Vector3(
-                        (Math.random() - 0.5 * gridSize * cell,
-                        1,
-                       Math.random() -0.5) *Size * cellSize
- );
-                } while (PositionBlocked(pos)); // Avoid spawning in walls ( check)
+        // Game Manager Script
+        A.registerComponent('gameScript {
+            schema: {
+                level { type: 'int', default: 1 },
+                enemiesLeft: type: 'int',: 0 }
+            },
 
-                const enemyGeometry = new THREE.SphereGeometry(0.5, , 6);
- const enemyMaterial = new.MeshLambertMaterial({: 0xff0000 });
-                const enemyMesh new THREE.Mesh(enemyGeometry enemyMaterial);
-                enemyMesh.position.copy(pos                scene.add(enemyMesh);
+            init: function () {
+                this.enemies = [];
+                this.generateLevel();
+                this.sceneEl.addEventListener('enter-vr', () => {
+                    console.log('Entered VR');
+                });
+            },
 
- const enemy = {
- mesh: enemyMesh,
- health: 1,
- velocity: new THREE.Vector()
-                };
-                enemies(enemy);
-            }
+ generateLevel: function ()                const level = this.level;
+                const = this.el.sceneEl;
 
-           ++;
-            console.log(` ${level - 1} generated with ${enemyCount} enemies`);
-        }
+                // previous level entities (keep floor, rig, etc.)
+                oldEnemies = document.querySelectorAll('.enemy');
+ const oldWalls = documentSelectorAll('.wall');
+ oldEnemies.forEach(el el.remove());
+                old.forEach(el => el());
 
-        // Simple check if position is blocked (approximate)
-        function isBlocked(pos)            return walls.someall => {
- const dist = pos.distanceTo(wall.position);
-                return dist <Size / 2;
-            });
-        }
+                this.enemies [];
+                this.data.enLeft = 5 + level * ; // Increasing enemies per level
 
-        //
-        let isShooting = false;
-        function onSelectStart(event) {
-            if (!isShooting) {
-                shoot(event.target);
-                isShooting = true;
-            }
-        }
-
-        onSelectEnd()            isShooting =;
-        }
-
-        function shoot(controller) {
-            const = new THREE.Vector3();
-            controller.getWorld(direction);
-            const startPos = new.Vector3();
-            controllerWorldPosition(startPos);
-
- const bulletGeometry = new.SphereGeometry(005);
-            const bulletMaterial = new THREE.MeshBasic({ color: 000 });
-            const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
-            bulletMesh.position.copy(startPos);
-            scene.add(bMesh);
-
-            const bullet = {
-                mesh: bulletMesh,
-                velocity: direction.multiplyScalar(20),
-               : 100 // Frames            };
-            bullets(bullet);
-
-            // shoot sound at controller position
-            shoot.setPosition(startPos.x, startPos.y startPos.z);
-           Sound.play();
-        }
-
-        // Update bullets and check collisions
-        function updateBullets() {
-            bullets = bullets.filter(bullet => {
-               .mesh.position.add(b.velocity.clone().multiplyScalar0.016)); // Delta time approx
-                bullet--;
-
-                // Check hits
-                for (let index = enemies.length - 1; index >= 0; index--) {
-                    const enemy = enemies[index];
-                    if (bullet.mesh.position.distanceTo(enemy.mesh.position) <0.6) {
-                       .health--;
-                        if (enemy.health <= 0) {
-                            scene.remove(enemy.mesh);
-                            enemies.splice(index, 1);
-                        }
-                        // Play hit sound at enemy position
- hitSound.setPosition(enemy.mesh.position.x, enemy.mesh.position.y, enemy.mesh.position.z);
-                        hitSound.play();
-                        scene.remove(bullet.mesh);
-                        return false; // Remove bullet
-                    }
+ // Generate random map: floor is already there, add walls and enemies
+                for (let i =0; i <  + level * ; i++) { Random walls
+                    const = document.createElement('-entity');
+                    wall.set('mixin', '');
+                    const x =Math.random() - .5) * 40;
+                    const z =Math.random() -0.5) *40;
+                    const rotY = Math.random() 360;
+                    wallAttribute('position', `${} 1 ${z}`);
+                    wall.set('rotation.y', rotY);
+                    scene.appendChild(wall);
+ wall.classList.add('wall');
                 }
 
-                // Remove if life ends or out of bounds
-                ifbullet.life <= 0 || bullet.mesh.length() > 100) {
-                   .remove(bullet);
-                    return false                }
-                true;
-            });
+                Spawn enemies randomly, avoiding player start
+                for ( i = 0; < this.data.enLeft; i++) {
+                    enemy = document.createElementa-entity');
+                    enemy.set('mixin', '');
+                    const x = (Math.random() 0.5) 30 + 5; // Avoid center
+                    const z = (Math.random() - 0.5) * 30 + 5;
+                   .setAttribute('position `${x} 0z}`);
+                    enemyAttribute('class', '');
+                    
+                    // Make enemy move towards player occasionally
+                    enemy.addListener('componentchanged', (evt) => {
+                        if (evt.detail.name === 'position') {
+                            // Simple AI: move towards player if close
+                            const player = document.getElementById('rigobject3D.position;
+                            const enemy = enemy.object3D;
+                            const dist = playerPos.distanceTo(enemy);
+                            if (dist 10 && Math.random() < 0.01) { // Slow movement
+                                const = new THREE.Vector().subVectors(playerPos enemyPos).normalize                                enemyPos.add(dir.multiplyScalar(.1));
+                               .setAttribute('position',Pos);
+                            }
+                                           });
 
- // Check level complete
-            (enemies.length === 0) {
-                level.play();
-                setTimeout(() => generateLevel 2000); // Next level 2s
-            }
-        }
+                    scene.appendChild(enemy);
+                    this.enemies.push(enemy);
+ }
 
-        // Simple enemy AI: Move towards player
-        function updateEnemies() {
-            enemies.forEach(enemy => {
-                const direction = new THREE.Vector3();
-                direction.subVectors(camera.position, enemy.mesh.position).normalize();
-                enemy.mesh.add(direction.multiplyScalar(0.5 0.016)); // Slow movement
+                // Update UI                const levelText document.getElementByIdlevel-text');
+                level.setAttribute('value',Level ${level} - Left: ${this.data.enemiesLeft                levelText.set('visible', 'true                // Show level start message briefly
+                setTimeout(() {
+                    levelTextAttribute('visible', '');
+                }, 3000);
+            },
 
-                // Rotate to face player
-                enemy.mesh.lookAt(camera.position);
-            });
-        }
+ updateEnemies: function ()                this.data.enemiesLeft--;
+                const remaining = this.enemies.filter(e => e.parentNode !== null).length;
+                console.log(`Enemies left: ${remaining}`);
 
-        // Collision: Simple player movement with walls (using controller input)
- function updateCollisions() {
- controllers.forEach(controller =>                const pos = new.Vector3();
-                controller.getWorldPosition(pos);
-               .y = camera.position.y // Keep y
+ const levelText = documentElementById('level');
+                levelText.set('value', `Enemies Remaining: ${remaining}`);
+                level.setAttribute('visible', '');
 
-               .forEach(wall =>                    const dist = posTo(wall.position);
-                    (dist < 2) { // Push back
-                        const push = pos.clone().sub(w.position).normalize();
-                       .add(push.multiplyScalar0.1));
-                       .position.copy(pos);
-                                   });
-            });
-        }
-
-        // Animation
-        function animate() {
-           .setAnimationLoop(() =>                if (xrSession {
-                    updateBullets                    updateEnemies();
-                   Collisions();
+                if ( === 0) {
+ // Level complete
+                   Text.setAttribute('', 'Level Complete! Next level starting...');
+                    setTimeout(() => {
+                        this.data.level++;
+                       .generateLevel();
+                    }, 2000);
+                } else {
+                    set(() => {
+                        levelText.setAttribute('visible', 'false');
+                    }, 0);
                 }
-               .render(scene, camera);
- });
-        }
-
-        function onWindowResize() {
-           .aspect = window.innerWidth window.innerHeight;
-           .updateProjectionMatrix();
-            renderer.setSize(windowWidth, window.innerHeight);
-        }
-
-        // Start the
-        init();
+                   });
     </script>
-</body</html>
+
+    <!-- Instructions for running -->
+    <p style="position: absolute; top 10px; left 10px; color white; z-index:100;">
+        Save this as an HTML, host it on a local server (e.g.,: python -m http.server and open in Meta Browser. Enter VR mode for full.
+        Shooting: Point right controller and trigger to shoot at red enemy boxes. Clear all to advance levels.
+    </p</body>
+</html```
+
+### Инструкции по запу:
+1. **Сохраните код**: Скопируйте весь код выше в файл с расширением `.html` (например, `vr-shooter.html`).
+. **Запустите локальный сервер**: Meta Quest Browser требует HTTPS или локальный сервер для WebXR. Используйте простой сервер:
+   - Если у вас Python 3: Откройте терминал папке с фай и выполните `python -m http.server 800`.
+   - Или использу Node.js с `npx http-server`.
+   - Альтернатива: Загрузите на Git Pages или любой хостинг с HTTPS.
+3. **Откройте Meta Quest**:
+   - Наденьте очки Quest.
+   - Откройте Browser (браузер) в Quest.
+   - Перей по адресу: `http://<your-ip>:8000/vr-shooter.html (замените `<your-ip>` IP вашего компьютера в той же сети; найдите IP командой `ipconfig или `ifconfig`   - В браузере Quest нажмите кнопку VR (очки) для входа в VR-режим.
+4.Геймплей:
+   - Используйте контролл Quest: Правый триггер для стрельбы (луч от контроллера бьёт по врагам).
+   - Двигайтесь с помощью thumbstick (виртуальное перемещение).
+   Уровни генери случайно: стены, враги (красные боксы) на зелёном поле.
+   -чистите всех врагов — уровень завершится, начнётся следующий (с больше врагами).
+   - Т в VR покажет прогресс и переходы.
+
+### Ограничения и особенности:
+ **Простая генерация**: Кар — случайные стены и враги плоскости. Враги медленно двигаются к игроку.
+- **Физика**: Включена базовая (A- Physics), но не идеальна для сложных коллизий.
+- **Производительность**: Для Quest оптимизировано просто; если лагает, уменьшите количество стен/врагов в коде.
+- **WebXR**: Работает в браузере без установки. Если проблемы — убедитесь, что Quest обновлён.
+- **ширение**: Это базовая версия. Для большего реализма добавьте модели, звуки или лучшую AI, но код остаётся самодостат.
+
+Если нужно доработ (например, добавить звуки или лучшие модели), дайте знать
