@@ -1,81 +1,82 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <meta charset="utf-8">
-    <title>WebXR VR Shooter — Meta Quest</title>
-    <meta name="description" content="Простой VR шутер для браузера">
-    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-physics-system@v4.2.2/dist/aframe-physics-system.min.js"></script>
-    
+    <title>WebXR Shooter - Meta Quest</title>
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    <script src="https://unpkg.com/aframe-environment-component@1.3.2/dist/aframe-environment-component.min.js"></script>
+  </head>
+  <body>
     <script>
-      // Компонент стрельбы
+      // Логика стрельбы
       AFRAME.registerComponent('shooter', {
         init: function () {
-          // Слушаем нажатие курка (triggerdown)
           this.el.addEventListener('triggerdown', (evt) => {
-            this.shoot();
-          });
-        },
-        shoot: function () {
-          // Создаем пулю
-          const bullet = document.createElement('a-sphere');
-          const worldPos = new THREE.Vector3();
-          const worldDir = new THREE.Vector3();
-          
-          // Получаем позицию и направление контроллера
-          this.el.object3D.getWorldPosition(worldPos);
-          this.el.object3D.getWorldDirection(worldDir);
-          
-          bullet.setAttribute('radius', '0.05');
-          bullet.setAttribute('color', '#FFEB3B');
-          bullet.setAttribute('position', worldPos);
-          // Добавляем физику пуле
-          bullet.setAttribute('dynamic-body', 'mass: 0.1; shape: sphere');
-          
-          this.el.sceneEl.appendChild(bullet);
-          
-          // Импульс пули (летит вперед)
-          bullet.addEventListener('body-loaded', () => {
-            const force = worldDir.multiplyScalar(-20); // Скорость полета
-            bullet.body.applyImpulse(
-              new CANNON.Vec3(force.x, force.y, force.z),
-              new CANNON.Vec3(worldPos.x, worldPos.y, worldPos.z)
-            );
-          });
+            // Создаем пулю
+            let bullet = document.createElement('a-sphere');
+            let worldPos = new THREE.Vector3();
+            let worldDir = new THREE.Vector3();
+            
+            // Получаем позицию и направление контроллера
+            this.el.object3D.getWorldPosition(worldPos);
+            this.el.object3D.getWorldDirection(worldDir);
+            
+            bullet.setAttribute('radius', '0.05');
+            bullet.setAttribute('color', '#FFEB3B');
+            bullet.setAttribute('position', worldPos);
+            
+            // Настройка физики полета (упрощенно)
+            bullet.setAttribute('velocity', {
+              x: -worldDir.x * 15,
+              y: -worldDir.y * 15,
+              z: -worldDir.z * 15
+            });
 
-          // Удаляем пулю через 3 секунды, чтобы не грузить память
-          setTimeout(() => bullet.parentNode.removeChild(bullet), 3000);
-        }
-      });
+            this.el.sceneEl.appendChild(bullet);
 
-      // Логика исчезновения мишени при попадании
-      AFRAME.registerComponent('target', {
-        init: function () {
-          this.el.addEventListener('collide', (e) => {
-            // Если попала пуля (сфера)
-            if (e.detail.body.el.tagName === 'A-SPHERE') {
-              this.el.setAttribute('visible', false);
-              setTimeout(() => this.el.setAttribute('visible', true), 2000);
-            }
+            // Анимация полета
+            let tick = () => {
+              let pos = bullet.getAttribute('position');
+              let vel = bullet.getAttribute('velocity');
+              bullet.setAttribute('position', {
+                x: pos.x + vel.x * 0.02,
+                y: pos.y + vel.y * 0.02,
+                z: pos.z + vel.z * 0.02
+              });
+            };
+            
+            let interval = setInterval(tick, 10);
+            setTimeout(() => { 
+              clearInterval(interval);
+              if(bullet.parentNode) bullet.parentNode.removeChild(bullet); 
+            }, 2000);
           });
         }
       });
     </script>
-  </head>
-  <body>
-    <a-scene physics="debug: false; gravity: -9.8">
-      <a-sky color="#222"></a-sky>
-      <a-plane static-body rotation="-90 0 0" width="50" height="50" color="#333"></a-plane>
 
-      <a-box target static-body position="-2 1.5 -5" color="#FF5722"></a-box>
-      <a-box target static-body position="0 2.5 -7" color="#FF5722"></a-box>
-      <a-box target static-body position="2 1 -4" color="#FF5722"></a-box>
+    <a-scene>
+      <a-entity environment="preset: neon; dressingAmount: 50; ground: spikes"></a-entity>
 
-      <a-entity id="rig">
-        <a-camera position="0 1.6 0"></a-camera>
-        <a-entity laser-controls="hand: left" shooter raycaster="objects: .target"></a-entity>
-        <a-entity laser-controls="hand: right" shooter raycaster="objects: .target"></a-entity>
+      <a-light type="ambient" intensity="0.5"></a-light>
+      <a-light type="point" position="2 4 4" intensity="0.8"></a-light>
+
+      <a-box position="-3 1.5 -5" rotation="0 45 0" color="#4CC3D9" shadow></a-box>
+      <a-cylinder position="5 0.75 -3" radius="0.5" height="1.5" color="#FFC65D" shadow></a-cylinder>
+      <a-sphere position="0 1.25 -10" radius="1.25" color="#EF2D5E" shadow></a-sphere>
+      
+      <a-torus-knot position="-5 2 -8" radius="0.5" color="#7BC8A4" 
+                    animation="property: rotation; to: 0 360 0; loop: true; dur: 3000"></a-torus-knot>
+
+      <a-entity id="rig" position="0 0 0">
+        <a-camera></a-camera>
+        <a-entity laser-controls="hand: left" raycaster="objects: .target"></a-entity>
+        <a-entity laser-controls="hand: right" shooter>
+           <a-entity geometry="primitive: box; width: 0.05; height: 0.05; depth: 0.3" 
+                     material="color: #333" position="0 0 -0.15"></a-entity>
+        </a-entity>
       </a-entity>
+
+      <a-plane position="0 0 0" rotation="-90 0 0" width="100" height="100" visible="false"></a-plane>
     </a-scene>
   </body>
 </html>
