@@ -1,196 +1,231 @@
-<!DOCTYPE html>
-<html<head>
-    <meta="utf-8">
- <title>VR Shooter - Procedural Levels</title    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-    <script src="://unpkg.com/aframe-extras@7..0/dist/aframetras.min.js"></script    <script src="://cdn.jsdelivr.net/npmframe-physics-system@.2.1/distframe-physics-system.min"></script>
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>VR Shooter — Random Levels (Meta Quest)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <script src="https://aframe.io/releases/1.4./aframe.min.js"></script>
+  <style>
+    body { margin: ; overflow: hidden; background: #000; }
+    #notes {
+      position: absolute; left: 8px; top: 8px; color: #fff; font-family: sans-serif;
+      background: rgba(,,,.5); padding: 8px; border-radius: 6px; z-index: 999;
+      max-width: 320px; font-size: 13px;
+    }
+  </style>
 </head>
 <body>
-    <a-scene 
-        vr-mode-ui="enabled: true"
-        physics="driver: cannon; gravity: -9.8"
-        background="color: #87CEEB"
-        fog="type: linear; color: #87EB; near: ; far: 50        
-        <!-- Assets (mixins for reuse) -->
-        <a-assets>
-            <aixin id="enemy"                     geometry="primitive: box width: 05; height: 1.5; depth: 0.3"
-                     material="color: red"
-                     class="enemy"
-                     physics="shape: box; mass: 1; fixed: false"></a-mixin>
-            <a-mixin id="wall" 
-                     geometry="primitive: box; width: 4; height: 2; depth: 0.1"
-                     material="color: gray"
-                     physicsshape: box; mass: 0; fixed: truea-mixin>
-            <a-mixin id="floor" 
-                     geometryprimitive: plane; width 50; height:50"
-                     material=": #90EE90"
-                    ="shape: plane; mass 0; fixed true"
-                     rotation="-90 00"></a-mixin            <!-- Simple gun visual -->
-            <aixin id="gun"
-                     geometry="primitive box; width: .05; height: 0.05; depth: 0.3"
-                     material="color: black"
-                     position="0.2  -0.3  -0.5"></a-m>
-        </a-assets>
+  <div id="notes">
+    Откройте в браузере Meta Quest и нажмите "Enter VR".<br>
+    Стрелять: спусковой крючок правого контроллера. В десктопе также работает клик мыши. 🎯
+  </div>
 
-        <!-- Player Rig -->
-        <a-entity id="rig 
-                  movement-controlsconstrainToNavMesh:; speed: 0.1"
-                  position="0 0 0">
-            <a-camera id="camera 
-                      position="0 1.6 0"
-                      look-controls
-                      raycaster="objects:enemy; far: 100">
-                <!-- Gun attached to camera -->
-                <a mixin="gun"></a>
-            </a-camera            
-            <!-- Hand controllers            <a-entity idleft-hand" 
-                     -controls="hand: left; model: true"
-                      laser-controls="hand:"></a-entity>
-           a-entity id="right" 
-                      hand-controls="hand: right; model true"
-                      laser-controls="hand: right"
- raycaster="objects:enemy; far: "
-                      shoot></a-entity>
-       a-entity>
+  <a-scene background="color: #88bde6" vr-mode-ui="enterVRButton: true" embedded game-manager>
+    <a-assets>
+      <audio id="hit-snd" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGFYQAAAAA="></audio>
+      <audio id="kill-snd" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGFYQAAAAA="></audio>
+      <audio id="levelup-snd" src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAESsAACJWAAACABAAZGFYQAAAAA="></audio>
+    </a-assets>
 
-        <!-- -->
-        <a-entity="type: ambient; color: #445451; intensity: 0.5"></a-entity>
-        <a-entity light="type: directional; color: #FFFFFF; intensity: 0.7" 
-                  position="-1 1 0" 
-                  rotation="-60 0 0"></a-entity>
+    <!-- Игрок и камера -->
+    <a-entity id="player" position=" 1.6 ">
+      <a-entity id="camera" camera look-controls wasd-controls>
+        <!-- HUD -->
+        <a-entity id="hud" position=" -.5 -1.1" rotation="  ">
+          <a-text id="levelText" value="Уровень: 1" color="#fff" width="2" position="-.95 .25 "></a-text>
+          <a-text id="enemiesText" value="Врагов: " color="#fff" width="2" position="-.95  "></a-text>
+        </a-entity>
+      </a-entity>
 
-        <!-- UI Text -->
-        <a-text id="level-text" 
-                value="Level 1 - Clear all enemies!" 
-                position="0 1.5 -3" 
-                align="center" 
-                color="white" 
-                scale="2 2 2"
-                visible="true"></a-text>
+      <!-- Правый контроллер (стрельба) -->
+      <a-entity id="rightHand"
+                hand-controls="hand: right; handModelStyle: lowPoly; color: #ffb86b"
+                raycaster="objects: .enemy; showLine: true; lineColor: #ff4444"
+                shooter>
+      </a-entity>
 
-        <!-- Initial Floor -->
-        <a-entity mixin="floor" position="0 0 0"></a-entity>
+      <!-- Левый контроллер (резерв) -->
+      <a-entity id="leftHand" hand-controls="hand: left; handModelStyle: lowPoly; color: #aaa"></a-entity>
+    </a-entity>
 
-        <!-- Game Manager -->
-        <a-entity id="game-manager" 
-                  game-script="level:1; enemiesLeft:0"></a-entity>
+    <!-- Пол -->
+    <a-plane rotation="-90  " width="80" height="80" color="#2b6b2b"></a-plane>
 
- </a-scene>
+    <!-- Свет -->
+    <a-entity light="type: ambient; color: #bbbbbb"></a-entity>
+    <a-entity light="type: directional; color: #ffffff; intensity: 1" position="5 10 5"></a-entity>
 
-    <!-- Custom Components -->
+    <!-- Место для динамически добавляемых объектов -->
+    <a-entity id="world"></a-entity>
+
+    <!-- Централизованные сообщения -->
+    <a-entity id="messages" position=" 1.3 -1.5">
+      <a-text id="centerMessage" value="" align="center" color="#fff" width="3"></a-text>
+    </a-entity>
+
     <script>
-        Shooting Component (attached to right hand)
-        AFRAMEComponent('shoot', {
-            init: function () {
-                this.elEventListener('raycastersection', (evt) => {
-                    const hitEl = evt.detail.els[0];
-                    if (hitEl && hitEl.classList.contains('enemy')) {
-                        // Remove enemy
-                        hitEl.parentNode.removeChild(hitEl);
-                        // Update game manager
-                        const gameManager =.getElementById('game-manager');
-                        if (Manager && gameManager.components['game-script']) {
-                            gameManager.components['game-script'].updateEnemies();
-                        }
-                    }
-                });
+      // Game manager: прикреплён к сцене через attribute game-manager
+      AFRAME.registerComponent('game-manager', {
+        init: function () {
+          this.level = 1;
+          this.baseEnemies = 3;
+          this.enemyCount = ;
+          this.enemies = [];
+          this.obstacles = [];
+          this.levelInProgress = false;
+          this.world = document.getElementById('world');
+          this.levelText = document.getElementById('levelText');
+          this.enemiesText = document.getElementById('enemiesText');
+          this.centerMessage = document.getElementById('centerMessage');
+          this.playerEl = document.getElementById('player');
+
+          // старт
+          this.startLevel(this.level);
+        },
+
+        startLevel: function (level) {
+          // очистить мир
+          while (this.world.firstChild) this.world.removeChild(this.world.firstChild);
+          this.enemies = [];
+          this.obstacles = [];
+
+          // HUD
+          this.levelText.setAttribute('value', 'Уровень: ' + level);
+
+          // сгенерировать препятствия
+          const obstacleCount = Math.min(8, 3 + Math.floor(Math.random() * 6));
+          for (let i = ; i < obstacleCount; i++) {
+            const box = document.createElement('a-box');
+            const w = 1 + Math.random() * 3;
+            const d = 1 + Math.random() * 3;
+            const h = .8 + Math.random() * 2;
+            const pos = this.findFreePosition(10);
+            box.setAttribute('width', w);
+            box.setAttribute('depth', d);
+            box.setAttribute('height', h);
+            box.setAttribute('color', '#7f5f3f');
+            box.setAttribute('position', pos.x + ' ' + (h/2) + ' ' + pos.z);
+            this.world.appendChild(box);
+            this.obstacles.push({pos: pos, boxSize: {x: w, z: d}});
+          }
+
+          // враги
+          const enemyCount = this.baseEnemies + Math.floor(level * 1.2) + Math.floor(Math.random() * 2);
+          this.enemyCount = enemyCount;
+          this.enemiesText.setAttribute('value', 'Врагов: ' + this.enemyCount);
+
+          for (let i = ; i < enemyCount; i++) {
+            const enemy = document.createElement('a-entity');
+            enemy.classList.add('enemy');
+            enemy.setAttribute('geometry', {primitive: 'sphere', radius: .35});
+            enemy.setAttribute('material', {color: '#ff5555', shader: 'standard'});
+            const pos = this.findFreePosition(12);
+            enemy.setAttribute('position', pos.x + ' .35 ' + pos.z);
+            enemy.setAttribute('enemy', {
+              speed: .6 + level * .15 + Math.random() * .3,
+              maxHealth: 1 + Math.floor(level / 2)
+            });
+            this.world.appendChild(enemy);
+            this.enemies.push(enemy);
+          }
+
+          this.levelInProgress = true;
+          this.showCenterMessage('Уровень ' + level, 160);
+        },
+
+        findFreePosition: function (radius) {
+          const maxAttempts = 60;
+          const playerPos = this.playerEl.object3D.position;
+          for (let attempt = ; attempt < maxAttempts; attempt++) {
+            const ang = Math.random() * Math.PI * 2;
+            const r = 2 + Math.random() * (radius - 2);
+            const x = playerPos.x + Math.cos(ang) * r;
+            const z = playerPos.z + Math.sin(ang) * r;
+            if (Math.hypot(x - playerPos.x, z - playerPos.z) < 2.2) continue;
+            let ok = true;
+            for (let ob of this.obstacles) {
+              const dx = x - ob.pos.x;
+              const dz = z - ob.pos.z;
+              if (Math.abs(dx) < (ob.boxSize.x * .6 + 1.) && Math.abs(dz) < (ob.boxSize.z * .6 + 1.)) {
+                ok = false; break;
+              }
             }
-               // Game Manager Script        AFRAME.registerComponentgame-script', {
-            schema: {
-                level: { type: 'int', default: 1 },
-                enemiesLeft: { type: 'int', default:  }
-            },
+            if (ok) return {x: x, z: z};
+          }
+          return {x: 3 + Math.random()*2, z: -3 - Math.random()*2};
+        },
 
-            init: function () {
-                this.enemies = [];
-                this.generateLevel();
-            },
+        onEnemyKilled: function (enemyEl) {
+          this.enemyCount--;
+          this.enemiesText.setAttribute('value', 'Врагов: ' + Math.max(, this.enemyCount));
+          this.enemies = this.enemies.filter(e => e !== enemyEl);
 
-            generateLevel: function () {
-                const level = this.data.level;
-                const sceneEl = this.el.sceneEl;
+          if (this.enemyCount <=  && this.levelInProgress) {
+            this.levelInProgress = false;
+            this.showCenterMessage('Уровень ' + this.level + ' пройден!', 190);
+            const levelup = document.querySelector('#levelup-snd');
+            if (levelup) levelup.play().catch(()=>{});
+            const self = this;
+            setTimeout(function () {
+              self.level++;
+              self.startLevel(self.level);
+            }, 200);
+          }
+        },
 
-                // Clear previous level entities (except floor, rig, lights)
-                const oldEnemies = document.querySelectorAll('.enemy');
-                const oldWalls = document.querySelectorAll('.wall');
-                oldEnemies.forEach(el => el.parentNode.removeChild(el));
-                oldWalls.forEach(el => el.parentNode.removeChild(el));
+        showCenterMessage: function (text, durationMs) {
+          this.centerMessage.setAttribute('value', text);
+          setTimeout(() => {
+            this.centerMessage.setAttribute('value', '');
+          }, durationMs || 150);
+        }
+      });
 
-                this.enemies =                this.data.enemies = 5 + level 2; // Increase per level
+      // Shooter: обрабатывает выстрелы с правого контроллера и мыши
+      AFRAME.registerComponent('shooter', {
+        init: function () {
+          this.rayComp = this.el.components.raycaster;
+          this.sceneEl = this.el.sceneEl;
+          this.handleFire = this.handleFire.bind(this);
 
-                Generate random walls (maze-like barriers)
-                for ( i = 0; < 10 + * 2; i++) {
-                    const wall = document.createElement('a-entity');
-                    wall.setAttribute('mixin', 'wall');
-                   .classList.add('wall');
-                    const x = (.random() - 0.5) * 40                    const z = (Math.random() - 05) * 40;
-                    const rotY =.random() * 360;
-                    wall.setAttribute('position', `${x} 1 ${z}`);
-                    wall.setAttribute('rotation', `0 ${rotY} 0`);
-                    sceneEl.appendChild(wall);
- }
-
-                // Spawn enemies, avoiding player start area
-                for (let i = 0; i < this.data.enemiesLeft; i++) {
-                    const enemy = document.createElement('a-entity');
-                    enemy.setAttribute('mixin', 'enemy');
-                    const x = (Math.random() - 0.5) * 30 + 5; // Offset from center
-                    const z = (Math.random() - 0.5) * 30 + 5;
-                    enemy.setAttribute('position', `${x} 0.75 ${z}`);
-                    
-                    // Simple AI: occasional movement towards player
-                    enemy.addEventListener('componentchanged', (evt) => {
-                        if (evt.detail.name === 'position')                            const playerPos = document.querySelector('#rig').object3D.position;
-                            const enemyPos = enemy.object3D.position;
-                            const distance = playerPos.distanceTo(enemyPos);
-                            if (distance < 10 && Math.random() < 0.01) { // Slow, random movement
-                                const direction = new THREE.Vector3().subVectors(playerPos, enemyPos).normalize();
-                                enemyPos.add(direction.multiplyScalar(0.1));
-                                enemy.setAttribute('position enemyPos);
-                            }
- }
-                    });
-
-                    scene.appendChild(enemy);
-                    this.enemies.push(enemy);
- }
-
-                // Update UI                const levelText = document.getElementById('-text');
-                levelTextAttribute('value', `Level ${level} - Enemies: ${this.data.enemiesLeft}`);
-                levelText.setAttribute('visible', 'true');
-                
-                // Hide start message after 3 seconds
-                setTimeout(() => {
-                    levelText.set('visible', 'false');
-                }, 3000);
-
- console.log(`Level ${level} generated with ${this.data.enemiesLeft} enemies.`);
-            },
-
-            updateEnemies: function () {
-                this.enemiesLeft--;
-                const remaining = document.querySelectorAll('.enemy').length;
-                console.log(`Enemies left: ${remaining}`);
-
-                const levelText = document.getElementByIdlevel-text');
-                levelText.setAttribute('value', `Enemies Remaining: ${remaining}`);
-                levelText.setAttribute('visible', 'true');
-
-                if (remaining === 0) {
-                    levelText.setAttribute('value 'Level Complete! Next level starting...                    setTimeout(() =>                        this.data.level++;
- this.generateLevel();
-                    2000);
-                } else {
-                    setTimeout(() => {
-                        levelText.setAttribute('visible', 'false');
-                    }, 2000);
+          // поддержка контроллера (triggerdown) и мыши (mousedown)
+          this.el.addEventListener('triggerdown', this.handleFire);
+          window.addEventListener('mousedown', this.handleFire);
+        },
+        remove: function () {
+          this.el.removeEventListener('triggerdown', this.handleFire);
+          window.removeEventListener('mousedown', this.handleFire);
+        },
+        handleFire: function (evt) {
+          // получить пересечения из компонента raycaster
+          const rc = this.el.components.raycaster;
+          let intersections = [];
+          if (rc) intersections = rc.intersections || [];
+          // в десктопе нет raycaster, создадим быстрый трассинг вперед от контроллера
+          if ((!intersections || intersections.length === ) && this.el.object3D) {
+            // fallback raycast по сцене: используем THREE.Raycaster
+            const origin = new THREE.Vector3();
+            const dir = new THREE.Vector3(,,-1);
+            this.el.object3D.getWorldPosition(origin);
+            this.el.object3D.getWorldDirection(dir);
+            const ray = new THREE.Raycaster(origin, dir.normalize());
+            // собрать все enemy object3D
+            const enemyEls = Array.from(this.sceneEl.querySelectorAll('.enemy'));
+            const objs = enemyEls.map(e => e.object3D);
+            const ints = ray.intersectObjects(objs, true);
+            if (ints && ints.length) {
+              // найти соответствующий элемент
+              const hitObj = ints[].object;
+              // найти родитель a-entity
+              let el = hitObj.el;
+              if (!el) {
+                // подстраховка: искать среди enemyEls
+                for (let ent of enemyEls) {
+                  if (ent.object3D && ent.object3D === hitObj || ent.object3D.contains(hitObj)) { el = ent; break; }
                 }
+              }
+              if (el) intersections = [{object: hitObj, el: el}];
             }
-        });
-    </script>
+          }
 
-    <!-- Instructions (visible on desktop) -->
-    <div style="position: absolute; top: 10px; left: 10px; color: white; z-index: 100; background: rgba(0,0,0,0.5); padding: 10px        <p>Save as HTML, run local server (e.g., python -m http.server 8000), open Quest Browser: http://&lt;your-ip&gt;:8000/vr-shooter.html</p>
-        <p>Enter VR mode. Use right trigger to shoot red enemies. Clear all to advance levels.</p>
-    </div>
-</body>
-html>
+          if (inter
