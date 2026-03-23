@@ -4,149 +4,156 @@
     <meta charset="utf-8">
     <title>VR Procedural Shooter - Meta Quest</title>
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-    <script src="https://unpkg.com/aframe-environment-component@1.3.2/dist/aframe-environment-component.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-physics-system@v4.2.2/dist/aframe-physics-system.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.0.0/dist/aframe-extras.min.js"></script>
   </head>
   <body>
-
     <script>
-      // Компонент игровой логики
+      // Компонент логики игры
       AFRAME.registerComponent('game-manager', {
         init: function () {
           this.level = 1;
-          this.enemiesToKill = 0;
-          this.sceneEl = this.el;
-          
-          // Слушаем выстрелы
-          this.el.addEventListener('triggerdown', (e) => this.shoot(e));
-          
-          // Запуск первого уровня
+          this.enemiesCount = 0;
+          this.el.addEventListener('enemy-down', () => {
+            this.enemiesCount--;
+            if (this.enemiesCount <= 0) {
+              this.nextLevel();
+            }
+          });
           this.startLevel();
         },
 
-        startLevel: function() {
-          const levelText = document.querySelector('#level-ui');
-          levelText.setAttribute('value', `LEVEL ${this.level}\nClear all targets!`);
+        startLevel: function () {
+          console.log("Starting Level: " + this.level);
+          const mapContainer = document.querySelector('#map');
+          mapContainer.innerHTML = ''; // Очистка старой карты
           
-          // Очистка старых объектов
-          this.clearLevel();
+          // Генерация лабиринта 10x10
+          this.generateMap(10, 10);
           
-          // Генерация лабиринта и врагов
-          this.generateMap();
-          
-          // Звук нового уровня
-          this.playSound('level-start-sound');
-          
-          // Убираем надпись через 3 секунды
-          setTimeout(() => levelText.setAttribute('value', ''), 3000);
+          // Уведомление игрока
+          this.showLevelText();
+          this.el.emit('play-sound', {type: 'start'});
         },
 
-        clearLevel: function() {
-          const entities = document.querySelectorAll('.generated');
-          entities.forEach(e => e.parentNode.removeChild(e));
-        },
+        generateMap: function (width, depth) {
+          const mapContainer = document.querySelector('#map');
+          this.enemiesCount = 0;
 
-        generateMap: function() {
-          const mapSize = 20 + (this.level * 2); // Карта растет с уровнем
-          this.enemiesToKill = 3 + this.level;
-          
-          // Создаем врагов
-          for (let i = 0; i < this.enemiesToKill; i++) {
-            let enemy = document.createElement('a-box');
-            enemy.setAttribute('class', 'enemy generated');
-            enemy.setAttribute('color', '#FF4444');
-            enemy.setAttribute('width', '0.8');
-            enemy.setAttribute('height', '1.5');
-            enemy.setAttribute('depth', '0.8');
-            
-            let x = (Math.random() - 0.5) * mapSize;
-            let z = (Math.random() - 0.5) * mapSize;
-            enemy.setAttribute('position', {x: x, y: 0.75, z: z});
-            
-            // Простая анимация "парения"
-            enemy.setAttribute('animation', 'property: position; dir: alternate; dur: 1000; loop: true; to: ' + x + ' 1 ' + z);
-            
-            this.sceneEl.appendChild(enemy);
+          for (let x = 0; x < width; x++) {
+            for (let z = 0; z < depth; z++) {
+              // Случайные стены (30% шанс)
+              if (Math.random() > 0.7 && (x !== 0 || z !== 0)) {
+                let wall = document.createElement('a-box');
+                wall.setAttribute('position', `${x * 4} 1.5 ${z * -4}`);
+                wall.setAttribute('width', 4);
+                wall.setAttribute('height', 3);
+                wall.setAttribute('depth', 4);
+                wall.setAttribute('color', '#444');
+                wall.setAttribute('static-body', '');
+                mapContainer.appendChild(wall);
+              } 
+              // Случайные враги (10% шанс)
+              else if (Math.random() > 0.9 && (x !== 0 || z !== 0)) {
+                this.spawnEnemy(x * 4, z * -4);
+              }
+            }
           }
-
-          // Создаем случайные препятствия (стены)
-          for (let i = 0; i < 15; i++) {
-            let wall = document.createElement('a-box');
-            wall.setAttribute('class', 'generated');
-            wall.setAttribute('color', '#444');
-            wall.setAttribute('width', '3');
-            wall.setAttribute('height', '4');
-            wall.setAttribute('depth', '0.5');
-            
-            let x = (Math.random() - 0.5) * mapSize;
-            let z = (Math.random() - 0.5) * mapSize;
-            wall.setAttribute('position', {x: x, y: 2, z: z});
-            wall.setAttribute('rotation', {x: 0, y: Math.random() * 360, z: 0});
-            
-            this.sceneEl.appendChild(wall);
-          }
+          // Если врагов не создалось случайно, ставим одного гарантированно
+          if(this.enemiesCount === 0) this.spawnEnemy(4, -4);
         },
 
-        shoot: function(event) {
+        spawnEnemy: function (x, z) {
+          this.enemiesCount++;
+          const enemy = document.createElement('a-entity');
+          enemy.setAttribute('enemy', '');
+          enemy.setAttribute('position', `${x} 1 ${z}`);
+          document.querySelector('#map').appendChild(enemy);
+        },
+
+        nextLevel: function () {
+          this.level++;
+          this.el.emit('play-sound', {type: 'win'});
+          setTimeout(() => this.startLevel(), 2000);
+        },
+
+        showLevelText: function() {
+            const txt = document.querySelector('#ui-text');
+            txt.setAttribute('value', `LEVEL ${this.level}\nClear all enemies!`);
+            setTimeout(() => txt.setAttribute('value', ''), 3000);
+        }
+      });
+
+      // Компонент врага
+      AFRAME.registerComponent('enemy', {
+        init: function () {
+          this.el.setAttribute('geometry', {primitive: 'sphere', radius: 0.6});
+          this.el.setAttribute('material', {color: 'red', emissive: 'red'});
+          this.el.setAttribute('class', 'target');
+        },
+        die: function() {
+          this.el.sceneEl.emit('enemy-down');
+          this.el.parentNode.removeChild(this.el);
+        }
+      });
+
+      // Компонент стрельбы
+      AFRAME.registerComponent('shooter', {
+        init: function () {
+          this.el.addEventListener('triggerdown', () => {
+            this.shoot();
+          });
+        },
+        shoot: function () {
           // Звук выстрела
-          this.playSound('shoot-sound');
-
-          // Получаем направление контроллера
-          const controller = event.target;
-          const raycaster = controller.components.raycaster;
-          if (!raycaster) return;
-
-          const intersections = raycaster.getIntersection();
-          const target = intersections.find(i => i.object.el.classList.contains('enemy'));
-
-          if (target) {
-            this.killEnemy(target.object.el);
-          }
-        },
-
-        killEnemy: function(el) {
-          this.playSound('hit-sound');
-          el.parentNode.removeChild(el);
-          this.enemiesToKill--;
-
-          if (this.enemiesToKill <= 0) {
-            this.level++;
-            this.startLevel();
-          }
-        },
-
-        playSound: function(id) {
-          const sound = document.querySelector(`#${id}`);
-          if (sound && sound.components.sound) {
-            sound.components.sound.stopSound();
-            sound.components.sound.playSound();
+          this.el.emit('play-sound', {type: 'shoot'});
+          
+          const raycaster = this.el.components.raycaster;
+          const intersection = raycaster.getIntersection(document.querySelectorAll('.target'));
+          
+          if (intersection) {
+            intersection.object.el.components.enemy.die();
           }
         }
       });
     </script>
 
-    <a-scene game-manager physics="debug: false">
+    <a-scene game-manager renderer="antialias: true">
       <a-assets>
-        <audio id="shot-src" src="https://cdn.freesound.org/previews/511/511414_11128544-lq.mp3"></audio>
-        <audio id="hit-src" src="https://cdn.freesound.org/previews/142/142608_1840739-lq.mp3"></audio>
-        <audio id="win-src" src="https://cdn.freesound.org/previews/274/274180_4486188-lq.mp3"></audio>
+        <audio id="snd-shoot" src="https://cdn.aframe.io/360-video-example/gu-drum.mp3"></audio>
       </a-assets>
 
-      <a-entity environment="preset: tron; seeding: 5"></a-entity>
+      <a-sky color="#111"></a-sky>
+      <a-ambient-light intensity="0.5"></a-ambient-light>
+      <a-point-light position="2 4 4" intensity="0.8"></a-point-light>
 
-      <a-entity camera look-controls position="0 1.6 0">
-        <a-text id="level-ui" value="GET READY!" position="0 0 -2" align="center" color="#FFF" width="4"></a-text>
-        <a-cursor fuse="false" raycaster="objects: .enemy" color="#FF0000"></a-cursor>
+      <a-text id="ui-text" value="GET READY" position="0 2 -3" align="center" color="yellow" width="6"></a-text>
+
+      <a-entity id="rig" movement-controls="controls: gamepad, keyboard">
+        <a-entity camera position="0 1.6 0" look-controls></a-entity>
+        
+        <a-entity id="rightHand" 
+                  laser-controls="hand: right" 
+                  raycaster="objects: .target; far: 50; showLine: true"
+                  line="color: red; opacity: 0.5"
+                  shooter>
+        </a-entity>
+        
+        <a-entity oculus-touch-controls="hand: left"></a-entity>
       </a-entity>
 
-      <a-entity id="leftHand" laser-controls="hand: left" raycaster="objects: .enemy; far: 50"></a-entity>
-      <a-entity id="rightHand" laser-controls="hand: right" raycaster="objects: .enemy; far: 50"></a-entity>
+      <a-entity id="map"></a-entity>
 
-      <a-entity id="shoot-sound" sound="src: #shot-src; poolSize: 5"></a-entity>
-      <a-entity id="hit-sound" sound="src: #hit-src; poolSize: 5"></a-entity>
-      <a-entity id="level-start-sound" sound="src: #win-src; poolSize: 1"></a-entity>
-
-      <a-plane rotation="-90 0 0" width="100" height="100" visible="false" static-body></a-plane>
+      <a-grid static-body position="0 0 0" cell-size="2" section-size="10" color="#222"></a-grid>
+      
     </a-scene>
+
+    <script>
+      // Простой обработчик звуков (имитация)
+      const scene = document.querySelector('a-scene');
+      scene.addEventListener('play-sound', (e) => {
+        // В реальном проекте здесь используется <a-sound>
+        console.log("Sound Effect: " + e.detail.type);
+      });
+    </script>
   </body>
 </html>
