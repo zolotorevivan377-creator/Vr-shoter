@@ -1,212 +1,330 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <meta charset="utf-8">
-    <title>Meta Quest VR Shooter - Ultimate</title>
-    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v6.1.1/dist/aframe-extras.min.js"></script>
+    <meta charset="UTF-">
+    <meta="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VR Procedural Shooter with Sounds</title>
+ <style>
+        body { margin: 0;: hidden; }
+        canvas display: block; }
+        #enterVR {: absolute; top: 10px; left: 10px; z-index: 100; padding: 10px; background: rgba(0,00,0.); color: white border: none; cursor pointer; }
+    </>
+    <script srchttps://cdnjs.cloudflare.com/ajax/three.js/r/three.min.js"></>
 </head>
-<body>
-    <a-scene renderer="antialias: true; colorManagement: true;">
-        
-        <a-entity id="world">
-            <a-entity id="sky" geometry="primitive: sphere; radius: 100" material="color: #020205; side: back; shader: flat"></a-entity>
-            <a-entity id="floor" geometry="primitive: plane; width: 200; height: 200" rotation="-90 0 0" material="color: #111; shader: flat"></a-entity>
-            <a-entity id="grid" geometry="primitive: plane; width: 100; height: 100" rotation="-90 0 0" position="0 0.02 0" material="src: url(https://cdn.aframe.io/a-blast/assets/images/floor.png); repeat: 40 40; opacity: 0.3"></a-entity>
-        </a-entity>
-
-        <a-light type="ambient" intensity="0.5"></a-light>
-        <a-light type="directional" position="1 5 3" intensity="0.8"></a-light>
-
-        <a-entity id="rig" movement-controls="speed: 0.25">
-            <a-camera id="camera" look-controls position="0 1.6 0" wasd-controls>
-                <a-text id="hud" value="LOADING..." position="0 -0.5 -1" scale="0.4 0.4 0.4" align="center" color="#0f0"></a-text>
-                <a-text id="msg" value="CLICK TRIGGER TO START" position="0 0.1 -1.2" align="center" width="3"></a-text>
-            </a-camera>
-
-            <a-entity oculus-touch-controls="hand: left"></a-entity>
-            <a-entity id="rightHand" oculus-touch-controls="hand: right" shooter-comp>
-                <a-entity geometry="primitive: box; width: 0.05; height: 0.05; depth: 0.2" material="color: #666" position="0 0 -0.1"></a-entity>
-            </a-entity>
-        </a-entity>
-
-        <a-entity id="walls"></a-entity>
-        <a-entity id="enemies"></a-entity>
-        <a-entity id="bullets"></a-entity>
-
-    </a-scene>
-
+<body    <button id="VR">Enter VR</button>
     <script>
-        let state = { active: false, hp: 100, lvl: 1, enemiesCount: 0 };
-        const camera = document.querySelector('#camera');
-        let audioCtx = null;
+        // Global variables
+        scene, camera, renderer xrSession = null        let controllers = [];
+        let = 1;
+        enemies = [];
+        let bullets = [];
+        let walls = [];
+        let floor;
+        let gridSize = 20; // Size of the procedural grid
+        let cell = 5; // Size of each cell
+        let enemyCount = 5; // Enemies per level, increases with level
 
-        function playTone(freq, dur) {
-            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            let o = audioCtx.createOscillator();
-            let g = audioCtx.createGain();
-            o.frequency.value = freq;
-            o.connect(g); g.connect(audioCtx.destination);
-            o.start(); 
-            g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
-            o.stop(audioCtx.currentTime + dur);
+        // Audio setup
+        let audioListener;
+        let shootSound, hitSound levelSound;
+        letContext; // For generating sounds
+
+        // the scene
+        function() {
+            scene = THREE.Scene();
+            scene.background = new THREE.Color(087CEEB); Sky blue
+            camera = THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set0, 1.6 0); // Eye level
+
+            renderer = THREE.WebGLRenderer({ antias: true });
+            renderer.setSize(window.innerWidth window.innerHeight);
+ renderer.xr.enabled = true            document.body.appendChild.domElement);
+
+            // Audio setup
+            audioListener = new THREE.AudioListener();
+            camera.add(audioListener);
+
+            // Generate sounds programmatically
+            audioContext = new (window.AudioContext || window.webkitAudioContext)            createSounds();
+
+            // Lighting
+ const ambientLight = new THREE.AmbientLight0x404040 0.6);
+ scene.add(ambientLight            const directionalLight = THREE.DirectionalLight(xffffff, 0.8            directionalLight.position.set(10, 10 5);
+            scene.add(directionalLight);
+
+            Controllers
+            const controllerFactory = () => {
+                const controller = renderer.xr.getController(0);
+               .add(controller);
+                controllers(controller);
+
+                // Grip for shooting
+                controller.addEventListener('selectstart', onSelectStart);
+ controller.addEventListener('end', onSelectEnd                // Visual controller mesh                const geometry = new.BoxGeometry(0., 0.1, 0.1);
+ const material = new.MeshBasicMaterial({ color 0x0000 });
+                const mesh new THREE.Mesh(geometry,);
+                controller.add(mesh.clone());
+                return controller;
+            };
+
+            renderer.xr.addEventListener('sessionstart', => {
+                controllers[0] = controllerFactory                controllers[1] controllerFactory();
+            });
+
+ // Floor
+            constGeometry = new THREE.Geometry(gridSize * cell, gridSize * cellSize);
+            const floorMaterial new THREE.MeshLambert({ color: 090EE90 });
+            = new THREE.Mesh(fGeometry, floorMaterial);
+ floor.rotation.x = -Math.PI / 2;
+ scene.add(floor);
+
+ // Enter VR button
+           .getElementByIdenterVR').addEvent('click', () =>                navigator.xr.requestSession('immersiver', { optionalFeatures: ['local'] }).then(session => {
+                    xr = session;
+                    rendererSession(session);
+                    documentElementById('enterVR').style.display = '';
+                    generateLevel();
+ });
+            });
+
+            // Resize handler
+            window.addListener('resize', onWindowResize);
+
+            // Render loop
+            animate        }
+
+        // Generate procedural sounds using Web Audio API
+        createSounds() {
+            Shoot sound: Laser-like beep
+            shoot = new THREE.PositionalAudio(audioListener);
+            scene.add(shootSound            const shootBuffer = generateLaserSound(0.1); // 0.s duration
+            shoot.setBuffer(shootBuffer            shootSound.setDistance(10);
+
+            // Hit sound: Short explosion
+            hit = new THREE.Positional(audioListener);
+            scene(hitSound);
+            constBuffer = generateExplosionSound0.2);
+           Sound.setBuffer(hit);
+            hitSound.setDistance(5);
+
+            // Level complete: Fanfare beep
+            levelSound new THREE.Audio(audioListener); // Non-positional for global
+ scene.add(levelSound);
+ const levelBuffer = generateFanSound(0.);
+            levelSound.setBuffer(levelBuffer);
         }
 
-        AFRAME.registerComponent('shooter-comp', {
-            init: function () {
-                this.el.addEventListener('triggerdown', () => {
-                    if (!state.active) start(); else this.fire();
-                });
-            },
-            fire: function() {
-                playTone(800, 0.1);
-                let b = document.createElement('a-entity');
-                let pos = new THREE.Vector3();
-                this.el.object3D.getWorldPosition(pos);
-                let dir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.el.object3D.getWorldQuaternion(new THREE.Quaternion()));
-                
-                b.setAttribute('geometry', 'primitive: sphere; radius: 0.05');
-                b.setAttribute('material', 'color: cyan; shader: flat');
-                b.setAttribute('position', pos);
-                b.setAttribute('bullet-logic', { dx: dir.x, dy: dir.y, dz: dir.z, isEnemy: false });
-                document.querySelector('#bullets').appendChild(b);
+        function generateLaserSound(duration) {
+            const sampleRate = audioContext.sampleRate;
+ const buffer = audioContext.createBuffer(1, sampleRate * duration, sampleRate);
+            const data = buffer.getChannelData(0);
+
+            for (let i = 0; i < data.length; i++) {
+                t = i / sampleRate;
+                data[i] Math.sin(2 * Math.PI 800 * t) Math.exp(-t * 10); // wave with decay
             }
-        });
+            buffer;
+        }
 
-        AFRAME.registerComponent('bullet-logic', {
-            schema: { dx: {type:'number'}, dy: {type:'number'}, dz: {type:'number'}, speed: {default: 0.7}, isEnemy: {default: false} },
-            tick: function (t, dt) {
-                let p = this.el.object3D.position;
-                p.x += this.data.dx * this.data.speed;
-                p.y += this.data.dy * this.data.speed;
-                p.z += this.data.dz * this.data.speed;
+        functionExplosionSound(duration)            const sampleRate = audio.sampleRate;
+            buffer = audioContext.createBuffer(1, sampleRate * duration, sampleRate);
+            const data = buffer.getChannelData(0);
 
-                let playerPos = new THREE.Vector3();
-                camera.object3D.getWorldPosition(playerPos);
+            for (let i = ; i < data.length;++) {
+                const = i / sampleRate                data[i] =Math.random() -0.5) *.exp(-t * ) * 0.5; // Noise decay
+            }
+            buffer;
+        }
 
-                if (this.data.isEnemy) {
-                    if (this.el.object3D.position.distanceTo(playerPos) < 0.5) {
-                        onHit(10); this.remove();
+        function generateFanfareSound(duration) {
+            const sampleRate = audioContext.sampleRate;
+            const buffer = audioContext.createBuffer(1, sampleRate * duration, sampleRate);
+            const data buffer.getChannelData(0            for (let = 0; i < data.length; i++)                const t = i sampleRate;
+                const freq = 440 + Math.sin(t * Math.PI * 2) * 200; // Wobbling frequency
+                data[i] Math.sin(2 * Math.PI * freq * t) * Math.exp(-t * 3); // Sine with decay
+            }
+            return buffer;
+        }
+
+        // level generation: Simple maze grid with walls
+        generateLevel() {
+            Clear previous level
+            enemies.forEach(enemy => scene.remove(enemy.mesh));
+            bullets.forEach(bullet => scene.remove(bullet.mesh));
+            walls.forEach(wall => scene.remove(wall));
+            enemies = [];
+            bullets = [];
+            walls = [];
+
+            enemyCount = 5 + (level - 1) * 2; // Increase per level
+
+            // random maze: Random walls on a grid            const wallMaterial = new THREE.MeshbertMaterial({ color:0x8B451 });
+            const wallGeometry = THREE.BoxGeometry(cell, 3, .5);
+
+            // Place walls randomly, avoiding blocking the entire map
+            for (let x = -grid / 2; x <Size / 2; x++) {
+                forlet z = -grid / 2; z gridSize / 2; z++) {
+                    ifMath.random() < .3) { //30% chance for
+                        const wall = THREE.Mesh(wallGeometry wallMaterial);
+                        wall.set(x * cellSize 1.5, * cellSize);
+                        Ensure start area is clear                        if (Math.abs) < 1 &&.abs(z) < 1) continue;
+                        scene.add(wall);
+                        walls.push(wall);
                     }
-                } else {
-                    document.querySelectorAll('.enemy').forEach(en => {
-                        if (this.el.object3D.position.distanceTo(en.object3D.position) < 0.8) {
-                            en.parentNode.removeChild(en);
-                            this.remove();
-                            state.enemiesCount--;
-                            updateHUD();
-                            if(state.enemiesCount <= 0) nextLvl();
+                }
+            }
+
+            // Place enemies randomly
+            for (let i = 0; i < enemyCount; i++) {
+                let pos;
+                do {
+                    pos = new THREE.Vector3(
+                        (Math.random() - 0.5 * gridSize * cell,
+                        1,
+                       Math.random() -0.5) *Size * cellSize
+ );
+                } while (PositionBlocked(pos)); // Avoid spawning in walls ( check)
+
+                const enemyGeometry = new THREE.SphereGeometry(0.5, , 6);
+ const enemyMaterial = new.MeshLambertMaterial({: 0xff0000 });
+                const enemyMesh new THREE.Mesh(enemyGeometry enemyMaterial);
+                enemyMesh.position.copy(pos                scene.add(enemyMesh);
+
+ const enemy = {
+ mesh: enemyMesh,
+ health: 1,
+ velocity: new THREE.Vector()
+                };
+                enemies(enemy);
+            }
+
+           ++;
+            console.log(` ${level - 1} generated with ${enemyCount} enemies`);
+        }
+
+        // Simple check if position is blocked (approximate)
+        function isBlocked(pos)            return walls.someall => {
+ const dist = pos.distanceTo(wall.position);
+                return dist <Size / 2;
+            });
+        }
+
+        //
+        let isShooting = false;
+        function onSelectStart(event) {
+            if (!isShooting) {
+                shoot(event.target);
+                isShooting = true;
+            }
+        }
+
+        onSelectEnd()            isShooting =;
+        }
+
+        function shoot(controller) {
+            const = new THREE.Vector3();
+            controller.getWorld(direction);
+            const startPos = new.Vector3();
+            controllerWorldPosition(startPos);
+
+ const bulletGeometry = new.SphereGeometry(005);
+            const bulletMaterial = new THREE.MeshBasic({ color: 000 });
+            const bullet = new THREE.Mesh(bulletGeometry, bulletMaterial);
+            bulletMesh.position.copy(startPos);
+            scene.add(bMesh);
+
+            const bullet = {
+                mesh: bulletMesh,
+                velocity: direction.multiplyScalar(20),
+               : 100 // Frames            };
+            bullets(bullet);
+
+            // shoot sound at controller position
+            shoot.setPosition(startPos.x, startPos.y startPos.z);
+           Sound.play();
+        }
+
+        // Update bullets and check collisions
+        function updateBullets() {
+            bullets = bullets.filter(bullet => {
+               .mesh.position.add(b.velocity.clone().multiplyScalar0.016)); // Delta time approx
+                bullet--;
+
+                // Check hits
+                for (let index = enemies.length - 1; index >= 0; index--) {
+                    const enemy = enemies[index];
+                    if (bullet.mesh.position.distanceTo(enemy.mesh.position) <0.6) {
+                       .health--;
+                        if (enemy.health <= 0) {
+                            scene.remove(enemy.mesh);
+                            enemies.splice(index, 1);
                         }
-                    });
-                }
-                
-                // Коллизия со стенами
-                document.querySelectorAll('.wall-obj').forEach(w => {
-                    if (this.el.object3D.position.distanceTo(w.object3D.position) < 1.2) this.remove();
-                });
-
-                if (p.length() > 60) this.remove();
-            },
-            remove: function() { if(this.el.parentNode) this.el.parentNode.removeChild(this.el); }
-        });
-
-        AFRAME.registerComponent('enemy-logic', {
-            schema: { type: {default: 'chaser'} },
-            init: function() { this.lastShot = 0; },
-            tick: function (t) {
-                if(!state.active) return;
-                let pp = new THREE.Vector3(); camera.object3D.getWorldPosition(pp);
-                let ep = this.el.object3D.position;
-                let dist = ep.distanceTo(pp);
-                let angle = Math.atan2(pp.x - ep.x, pp.z - ep.z);
-
-                if(this.data.type === 'chaser') {
-                    ep.x += Math.sin(angle) * 0.04; ep.z += Math.cos(angle) * 0.04;
-                    if(dist < 1.1) onHit(0.2);
-                } else {
-                    if(dist > 8) {
-                        ep.x += Math.sin(angle) * 0.03; ep.z += Math.cos(angle) * 0.03;
-                    } else if(t - this.lastShot > 2000) {
-                        this.shoot(pp, ep); this.lastShot = t;
+                        // Play hit sound at enemy position
+ hitSound.setPosition(enemy.mesh.position.x, enemy.mesh.position.y, enemy.mesh.position.z);
+                        hitSound.play();
+                        scene.remove(bullet.mesh);
+                        return false; // Remove bullet
                     }
                 }
-            },
-            shoot: function(pp, ep) {
-                let b = document.createElement('a-entity');
-                let dir = new THREE.Vector3().subVectors(pp, ep).normalize();
-                b.setAttribute('geometry', 'primitive: sphere; radius: 0.12');
-                b.setAttribute('material', 'color: #ff6600; shader: flat');
-                b.setAttribute('position', {x: ep.x, y: 1.3, z: ep.z});
-                b.setAttribute('bullet-logic', { dx: dir.x, dy: dir.y, dz: dir.z, speed: 0.2, isEnemy: true });
-                document.querySelector('#bullets').appendChild(b);
+
+                // Remove if life ends or out of bounds
+                ifbullet.life <= 0 || bullet.mesh.length() > 100) {
+                   .remove(bullet);
+                    return false                }
+                true;
+            });
+
+ // Check level complete
+            (enemies.length === 0) {
+                level.play();
+                setTimeout(() => generateLevel 2000); // Next level 2s
             }
-        });
-
-        function onHit(a) {
-            state.hp -= a; playTone(200, 0.1); updateHUD();
-            if(state.hp <= 0) stop();
         }
 
-        function start() {
-            state.active = true; state.hp = 100; state.lvl = 1;
-            document.querySelector('#msg').setAttribute('visible', false);
-            build();
+        // Simple enemy AI: Move towards player
+        function updateEnemies() {
+            enemies.forEach(enemy => {
+                const direction = new THREE.Vector3();
+                direction.subVectors(camera.position, enemy.mesh.position).normalize();
+                enemy.mesh.add(direction.multiplyScalar(0.5 0.016)); // Slow movement
+
+                // Rotate to face player
+                enemy.mesh.lookAt(camera.position);
+            });
         }
 
-        function build() {
-            const wGroup = document.querySelector('#walls');
-            const eGroup = document.querySelector('#enemies');
-            wGroup.innerHTML = ''; eGroup.innerHTML = '';
+        // Collision: Simple player movement with walls (using controller input)
+ function updateCollisions() {
+ controllers.forEach(controller =>                const pos = new.Vector3();
+                controller.getWorldPosition(pos);
+               .y = camera.position.y // Keep y
 
-            // Генерируем стены (Белые столбы)
-            for(let i=0; i<15; i++) {
-                let w = document.createElement('a-entity');
-                let px = (Math.random()-0.5)*30;
-                let pz = (Math.random()-0.5)*30;
-                if (Math.abs(px) < 4 && Math.abs(pz) < 4) continue;
-                
-                w.setAttribute('geometry', 'primitive: box; width: 1.5; height: 5; depth: 1.5');
-                w.setAttribute('material', 'color: #ffffff; roughness: 1');
-                w.setAttribute('position', {x: px, y: 2.5, z: pz});
-                w.classList.add('wall-obj');
-                wGroup.appendChild(w);
-            }
-
-            // Генерируем врагов
-            state.enemiesCount = 2 + state.lvl;
-            for(let i=0; i<state.enemiesCount; i++) {
-                let en = document.createElement('a-entity');
-                let isS = Math.random() > 0.4;
-                en.setAttribute('geometry', `primitive: ${isS ? 'box' : 'cone'}; height: 1.6`);
-                en.setAttribute('material', `color: ${isS ? '#44f' : '#f44'}`);
-                let a = Math.random()*Math.PI*2;
-                en.setAttribute('position', {x: Math.sin(a)*18, y: 0.8, z: Math.cos(a)*18});
-                en.setAttribute('enemy-logic', {type: isS ? 'shooter' : 'chaser'});
-                en.classList.add('enemy');
-                eGroup.appendChild(en);
-            }
-            updateHUD();
+               .forEach(wall =>                    const dist = posTo(wall.position);
+                    (dist < 2) { // Push back
+                        const push = pos.clone().sub(w.position).normalize();
+                       .add(push.multiplyScalar0.1));
+                       .position.copy(pos);
+                                   });
+            });
         }
 
-        function nextLvl() {
-            state.lvl++; state.hp = Math.min(state.hp + 40, 100);
-            let m = document.querySelector('#msg');
-            m.setAttribute('value', 'LEVEL UP!'); m.setAttribute('visible', true);
-            setTimeout(() => { m.setAttribute('visible', false); build(); }, 1500);
+        // Animation
+        function animate() {
+           .setAnimationLoop(() =>                if (xrSession {
+                    updateBullets                    updateEnemies();
+                   Collisions();
+                }
+               .render(scene, camera);
+ });
         }
 
-        function updateHUD() {
-            document.querySelector('#hud').setAttribute('value', `HP: ${Math.ceil(state.hp)} | LVL: ${state.lvl} | ENEMIES: ${state.enemiesCount}`);
+        function onWindowResize() {
+           .aspect = window.innerWidth window.innerHeight;
+           .updateProjectionMatrix();
+            renderer.setSize(windowWidth, window.innerHeight);
         }
 
-        function stop() {
-            state.active = false;
-            document.querySelector('#enemies').innerHTML = '';
-            document.querySelector('#walls').innerHTML = '';
-            let m = document.querySelector('#msg');
-            m.setAttribute('value', 'GAME OVER\nTRIGGER TO RESTART');
-            m.setAttribute('visible', true);
-        }
+        // Start the
+        init();
     </script>
-</body>
-</html>
+</body</html>
