@@ -2,211 +2,210 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>VR Quest Shooter: Ultra Stable</title>
-    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
+    <title>Meta Quest VR Shooter - Ultimate</title>
+    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v6.1.1/dist/aframe-extras.min.js"></script>
 </head>
 <body>
-    <a-scene>
-        <a-assets>
-            <a-mixin id="bullet" geometry="primitive: sphere; radius: 0.05" material="color: #00ffff; shader: flat"></a-mixin>
-            <a-mixin id="en-bullet" geometry="primitive: sphere; radius: 0.1" material="color: #ff6600; shader: flat"></a-mixin>
-        </a-assets>
-
-        <a-sky color="#0a0a20"></a-sky>
-        <a-plane rotation="-90 0 0" width="100" height="100" color="#111"></a-plane>
-        <a-entity line="start: -50 0.01 -50; end: 50 0.01 -50; color: #333" position="0 0 0"></a-entity>
+    <a-scene renderer="antialias: true; colorManagement: true;">
         
-        <a-light type="ambient" intensity="0.6"></a-light>
-        <a-light type="directional" position="1 5 2" intensity="0.8"></a-light>
+        <a-entity id="world">
+            <a-entity id="sky" geometry="primitive: sphere; radius: 100" material="color: #020205; side: back; shader: flat"></a-entity>
+            <a-entity id="floor" geometry="primitive: plane; width: 200; height: 200" rotation="-90 0 0" material="color: #111; shader: flat"></a-entity>
+            <a-entity id="grid" geometry="primitive: plane; width: 100; height: 100" rotation="-90 0 0" position="0 0.02 0" material="src: url(https://cdn.aframe.io/a-blast/assets/images/floor.png); repeat: 40 40; opacity: 0.3"></a-entity>
+        </a-entity>
 
-        <a-entity id="rig" movement-controls="speed: 0.2">
-            <a-camera id="camera" look-controls position="0 1.6 0">
-                <a-text id="hud" value="READY?" position="0 -0.5 -1" scale="0.4 0.4 0.4" align="center" color="#0f0"></a-text>
-                <a-text id="announcer" value="CLICK TRIGGER TO START" position="0 0.2 -1.5" scale="1 1 1" align="center" color="#fff"></a-text>
+        <a-light type="ambient" intensity="0.5"></a-light>
+        <a-light type="directional" position="1 5 3" intensity="0.8"></a-light>
+
+        <a-entity id="rig" movement-controls="speed: 0.25">
+            <a-camera id="camera" look-controls position="0 1.6 0" wasd-controls>
+                <a-text id="hud" value="LOADING..." position="0 -0.5 -1" scale="0.4 0.4 0.4" align="center" color="#0f0"></a-text>
+                <a-text id="msg" value="CLICK TRIGGER TO START" position="0 0.1 -1.2" align="center" width="3"></a-text>
             </a-camera>
 
             <a-entity oculus-touch-controls="hand: left"></a-entity>
-            <a-entity id="rightHand" oculus-touch-controls="hand: right" shooter-logic>
-                <a-box width="0.05" height="0.05" depth="0.2" color="#444" position="0 0 -0.1"></a-box>
+            <a-entity id="rightHand" oculus-touch-controls="hand: right" shooter-comp>
+                <a-entity geometry="primitive: box; width: 0.05; height: 0.05; depth: 0.2" material="color: #666" position="0 0 -0.1"></a-entity>
             </a-entity>
         </a-entity>
 
-        <a-entity id="walls-container"></a-entity>
-        <a-entity id="enemies-container"></a-entity>
-        <a-entity id="bullets-container"></a-entity>
+        <a-entity id="walls"></a-entity>
+        <a-entity id="enemies"></a-entity>
+        <a-entity id="bullets"></a-entity>
+
     </a-scene>
 
     <script>
-        let game = { active: false, hp: 100, lvl: 1, enemiesLeft: 0 };
-        const cameraEl = document.querySelector('#camera');
-        
-        // Звуковой движок
-        let audioCtx;
-        function playBeep(f, d) {
-            if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let state = { active: false, hp: 100, lvl: 1, enemiesCount: 0 };
+        const camera = document.querySelector('#camera');
+        let audioCtx = null;
+
+        function playTone(freq, dur) {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             let o = audioCtx.createOscillator();
             let g = audioCtx.createGain();
-            o.frequency.setValueAtTime(f, audioCtx.currentTime);
+            o.frequency.value = freq;
             o.connect(g); g.connect(audioCtx.destination);
-            o.start(); g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + d);
-            o.stop(audioCtx.currentTime + d);
+            o.start(); 
+            g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+            o.stop(audioCtx.currentTime + dur);
         }
 
-        // Логика стрельбы
-        AFRAME.registerComponent('shooter-logic', {
+        AFRAME.registerComponent('shooter-comp', {
             init: function () {
                 this.el.addEventListener('triggerdown', () => {
-                    if (!game.active) startNewGame();
-                    else this.fire();
+                    if (!state.active) start(); else this.fire();
                 });
             },
             fire: function() {
-                playBeep(600, 0.1);
-                const b = document.createElement('a-entity');
-                b.setAttribute('mixin', 'bullet');
+                playTone(800, 0.1);
+                let b = document.createElement('a-entity');
                 let pos = new THREE.Vector3();
                 this.el.object3D.getWorldPosition(pos);
                 let dir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.el.object3D.getWorldQuaternion(new THREE.Quaternion()));
+                
+                b.setAttribute('geometry', 'primitive: sphere; radius: 0.05');
+                b.setAttribute('material', 'color: cyan; shader: flat');
                 b.setAttribute('position', pos);
-                b.setAttribute('bullet-fly', { dx: dir.x, dy: dir.y, dz: dir.z, isEnemy: false });
-                document.querySelector('#bullets-container').appendChild(b);
+                b.setAttribute('bullet-logic', { dx: dir.x, dy: dir.y, dz: dir.z, isEnemy: false });
+                document.querySelector('#bullets').appendChild(b);
             }
         });
 
-        // Полет пули и коллизии
-        AFRAME.registerComponent('bullet-fly', {
-            schema: { dx: {type:'number'}, dy: {type:'number'}, dz: {type:'number'}, isEnemy: {default: false} },
-            tick: function () {
+        AFRAME.registerComponent('bullet-logic', {
+            schema: { dx: {type:'number'}, dy: {type:'number'}, dz: {type:'number'}, speed: {default: 0.7}, isEnemy: {default: false} },
+            tick: function (t, dt) {
                 let p = this.el.object3D.position;
-                p.x += this.data.dx * 0.6; p.y += this.data.dy * 0.6; p.z += this.data.dz * 0.6;
+                p.x += this.data.dx * this.data.speed;
+                p.y += this.data.dy * this.data.speed;
+                p.z += this.data.dz * this.data.speed;
 
-                // Проверка столкновения с игроком (World Distance)
+                let playerPos = new THREE.Vector3();
+                camera.object3D.getWorldPosition(playerPos);
+
                 if (this.data.isEnemy) {
-                    let playerWorldPos = new THREE.Vector3();
-                    cameraEl.object3D.getWorldPosition(playerWorldPos);
-                    let dist = this.el.object3D.position.distanceTo(playerWorldPos);
-                    
-                    if (dist < 0.4) { // Радиус игрока
-                        damagePlayer(15);
-                        this.removeSelf();
+                    if (this.el.object3D.position.distanceTo(playerPos) < 0.5) {
+                        onHit(10); this.remove();
                     }
                 } else {
-                    // Попадание во врагов
                     document.querySelectorAll('.enemy').forEach(en => {
                         if (this.el.object3D.position.distanceTo(en.object3D.position) < 0.8) {
                             en.parentNode.removeChild(en);
-                            this.removeSelf();
-                            game.enemiesLeft--;
+                            this.remove();
+                            state.enemiesCount--;
                             updateHUD();
-                            if(game.enemiesLeft <= 0) levelUp();
+                            if(state.enemiesCount <= 0) nextLvl();
                         }
                     });
                 }
-
+                
                 // Коллизия со стенами
-                document.querySelectorAll('.wall').forEach(w => {
-                    if (this.el.object3D.position.distanceTo(w.object3D.position) < 1.1) this.removeSelf();
+                document.querySelectorAll('.wall-obj').forEach(w => {
+                    if (this.el.object3D.position.distanceTo(w.object3D.position) < 1.2) this.remove();
                 });
 
-                if (Math.abs(p.z) > 50 || Math.abs(p.x) > 50) this.removeSelf();
+                if (p.length() > 60) this.remove();
             },
-            removeSelf: function() { if(this.el.parentNode) this.el.parentNode.removeChild(this.el); }
+            remove: function() { if(this.el.parentNode) this.el.parentNode.removeChild(this.el); }
         });
 
-        // ИИ Врага
-        AFRAME.registerComponent('enemy-ai', {
-            schema: { type: {default: 'chaser'}, lastShot: {default: 0} },
+        AFRAME.registerComponent('enemy-logic', {
+            schema: { type: {default: 'chaser'} },
+            init: function() { this.lastShot = 0; },
             tick: function (t) {
-                if(!game.active) return;
-                let pp = new THREE.Vector3(); cameraEl.object3D.getWorldPosition(pp);
+                if(!state.active) return;
+                let pp = new THREE.Vector3(); camera.object3D.getWorldPosition(pp);
                 let ep = this.el.object3D.position;
                 let dist = ep.distanceTo(pp);
-
                 let angle = Math.atan2(pp.x - ep.x, pp.z - ep.z);
+
                 if(this.data.type === 'chaser') {
                     ep.x += Math.sin(angle) * 0.04; ep.z += Math.cos(angle) * 0.04;
-                    if(dist < 1.2) damagePlayer(0.2); // Урон при касании
+                    if(dist < 1.1) onHit(0.2);
                 } else {
-                    if(dist > 7) { ep.x += Math.sin(angle)*0.03; ep.z += Math.cos(angle)*0.03; }
-                    else if(t - this.data.lastShot > 3000) {
-                        this.shoot(pp, ep); this.data.lastShot = t;
+                    if(dist > 8) {
+                        ep.x += Math.sin(angle) * 0.03; ep.z += Math.cos(angle) * 0.03;
+                    } else if(t - this.lastShot > 2000) {
+                        this.shoot(pp, ep); this.lastShot = t;
                     }
                 }
             },
             shoot: function(pp, ep) {
                 let b = document.createElement('a-entity');
-                b.setAttribute('mixin', 'en-bullet');
                 let dir = new THREE.Vector3().subVectors(pp, ep).normalize();
-                b.setAttribute('position', {x: ep.x, y: 1.2, z: ep.z});
-                b.setAttribute('bullet-fly', { dx: dir.x, dy: dir.y, dz: dir.z, isEnemy: true });
-                document.querySelector('#bullets-container').appendChild(b);
+                b.setAttribute('geometry', 'primitive: sphere; radius: 0.12');
+                b.setAttribute('material', 'color: #ff6600; shader: flat');
+                b.setAttribute('position', {x: ep.x, y: 1.3, z: ep.z});
+                b.setAttribute('bullet-logic', { dx: dir.x, dy: dir.y, dz: dir.z, speed: 0.2, isEnemy: true });
+                document.querySelector('#bullets').appendChild(b);
             }
         });
 
-        function damagePlayer(amt) {
-            game.hp -= amt; playBeep(150, 0.1); updateHUD();
-            if(game.hp <= 0) gameOver();
+        function onHit(a) {
+            state.hp -= a; playTone(200, 0.1); updateHUD();
+            if(state.hp <= 0) stop();
         }
 
-        function startNewGame() {
-            game.active = true; game.hp = 100; game.lvl = 1;
-            document.querySelector('#announcer').setAttribute('visible', false);
-            buildLevel();
+        function start() {
+            state.active = true; state.hp = 100; state.lvl = 1;
+            document.querySelector('#msg').setAttribute('visible', false);
+            build();
         }
 
-        function buildLevel() {
-            // Очистка
-            document.querySelector('#enemies-container').innerHTML = '';
-            let wCont = document.querySelector('#walls-container');
-            wCont.innerHTML = '';
+        function build() {
+            const wGroup = document.querySelector('#walls');
+            const eGroup = document.querySelector('#enemies');
+            wGroup.innerHTML = ''; eGroup.innerHTML = '';
 
-            // Стены (Колонны)
-            for(let i=0; i<12; i++) {
-                let w = document.createElement('a-box');
-                w.className = 'wall';
-                w.setAttribute('position', {x: (Math.random()-0.5)*25, y: 2, z: (Math.random()-0.5)*25});
-                w.setAttribute('height', 4); w.setAttribute('width', 1.5); w.setAttribute('depth', 1.5);
-                w.setAttribute('color', '#fff'); // БЕЛЫЕ СТЕНЫ ДЛЯ ВИДИМОСТИ
-                if(w.getAttribute('position').z > -3 && w.getAttribute('position').z < 3) continue; // Не спавнить на игроке
-                wCont.appendChild(w);
+            // Генерируем стены (Белые столбы)
+            for(let i=0; i<15; i++) {
+                let w = document.createElement('a-entity');
+                let px = (Math.random()-0.5)*30;
+                let pz = (Math.random()-0.5)*30;
+                if (Math.abs(px) < 4 && Math.abs(pz) < 4) continue;
+                
+                w.setAttribute('geometry', 'primitive: box; width: 1.5; height: 5; depth: 1.5');
+                w.setAttribute('material', 'color: #ffffff; roughness: 1');
+                w.setAttribute('position', {x: px, y: 2.5, z: pz});
+                w.classList.add('wall-obj');
+                wGroup.appendChild(w);
             }
 
-            // Враги
-            game.enemiesLeft = 2 + game.lvl;
-            for(let i=0; i<game.enemiesLeft; i++) {
+            // Генерируем врагов
+            state.enemiesCount = 2 + state.lvl;
+            for(let i=0; i<state.enemiesCount; i++) {
                 let en = document.createElement('a-entity');
-                en.className = 'enemy';
-                let isS = Math.random() > 0.5;
-                en.setAttribute('geometry', {primitive: isS ? 'box' : 'cone', height: 1.6});
-                en.setAttribute('material', 'color', isS ? '#33f' : '#f33');
+                let isS = Math.random() > 0.4;
+                en.setAttribute('geometry', `primitive: ${isS ? 'box' : 'cone'}; height: 1.6`);
+                en.setAttribute('material', `color: ${isS ? '#44f' : '#f44'}`);
                 let a = Math.random()*Math.PI*2;
-                en.setAttribute('position', {x: Math.sin(a)*15, y: 0.8, z: Math.cos(a)*15});
-                en.setAttribute('enemy-ai', {type: isS ? 'shooter' : 'chaser'});
-                document.querySelector('#enemies-container').appendChild(en);
+                en.setAttribute('position', {x: Math.sin(a)*18, y: 0.8, z: Math.cos(a)*18});
+                en.setAttribute('enemy-logic', {type: isS ? 'shooter' : 'chaser'});
+                en.classList.add('enemy');
+                eGroup.appendChild(en);
             }
             updateHUD();
         }
 
-        function levelUp() {
-            game.lvl++; game.hp = Math.min(game.hp + 40, 100);
-            let ann = document.querySelector('#announcer');
-            ann.setAttribute('value', 'LEVEL COMPLETED!');
-            ann.setAttribute('visible', true);
-            setTimeout(() => {
-                ann.setAttribute('visible', false);
-                buildLevel();
-            }, 2000);
+        function nextLvl() {
+            state.lvl++; state.hp = Math.min(state.hp + 40, 100);
+            let m = document.querySelector('#msg');
+            m.setAttribute('value', 'LEVEL UP!'); m.setAttribute('visible', true);
+            setTimeout(() => { m.setAttribute('visible', false); build(); }, 1500);
         }
 
         function updateHUD() {
-            document.querySelector('#hud').setAttribute('value', `HP: ${Math.ceil(game.hp)} | LVL: ${game.lvl} | ENEMIES: ${game.enemiesLeft}`);
+            document.querySelector('#hud').setAttribute('value', `HP: ${Math.ceil(state.hp)} | LVL: ${state.lvl} | ENEMIES: ${state.enemiesCount}`);
         }
 
-        function gameOver() {
-            game.active = false;
-            document.querySelector('#announcer').setAttribute('value', 'GAME OVER\nTRIGGER TO RESTART');
-            document.querySelector('#announcer').setAttribute('visible', true);
+        function stop() {
+            state.active = false;
+            document.querySelector('#enemies').innerHTML = '';
+            document.querySelector('#walls').innerHTML = '';
+            let m = document.querySelector('#msg');
+            m.setAttribute('value', 'GAME OVER\nTRIGGER TO RESTART');
+            m.setAttribute('visible', true);
         }
     </script>
 </body>
