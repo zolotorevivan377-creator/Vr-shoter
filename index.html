@@ -17,20 +17,35 @@
   <script type="module">
     import * as THREE from 'https://unpkg.com/three@0.126.1/build/three.module.js';
     import { OrbitControls } from 'https://unpkg.com/three@0.126.1/examples/jsm/controls/OrbitControls.js';
+    import { VRButton } from 'https://unpkg.com/three@0.126.1/examples/jsm/webxr/VRButton.js';
     import { WebXRController } from 'https://unpkg.com/three@0.126.1/examples/jsm/webxr/WebXRController.js';
     import { XRControllerModelFactory } from 'https://unpkg.com/three@0.126.1/examples/jsm/webxr/XRControllerModelFactory.js';
+    import { AudioLoader } from 'https://unpkg.com/three@0.126.1/src/loaders/AudioLoader.js';
+    import { Audio, AudioListener } from 'https://unpkg.com/three@0.126.1/src/audio/Audio.js';
 
     // Настройка сцены и рендера
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer();
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.xr.enabled = true;
     document.body.appendChild(renderer.domElement);
+
+    // Добавление кнопки VR
+    document.body.appendChild(VRButton.createButton(renderer));
 
     // Настройка контроллера и звука
     const controller1 = new WebXRController();
     const controller2 = new WebXRController();
     const controllerModelFactory = new XRControllerModelFactory();
+    const audioListener = new AudioListener();
+    camera.add(audioListener);
+    const audioLoader = new AudioLoader();
+    let shootSound;
+    audioLoader.load('path/to/your/shoot/sound.mp3', (buffer) => {
+      shootSound = new Audio(audioListener);
+      shootSound.setBuffer(buffer);
+    });
 
     // Генерация уровня
     let enemies = [];
@@ -50,6 +65,12 @@
       // Обновление контроллеров
       controller1.update();
       controller2.update();
+
+      // Проверка столкновений и выстрелы
+      if (controller1.getButtonState('trigger')) {
+        shootSound.play();
+        // Логика стрельбы
+      }
 
       // Рендеринг сцены
       renderer.render(scene, camera);
@@ -77,9 +98,12 @@
     }
 
     // Запуск игры
-    navigator.xr.requestSession('immersive-vr').then((session) => {
-      renderer.xr.setSession(session);
+    renderer.xr.addEventListener('sessionstart', () => {
       animate();
+    });
+
+    renderer.xr.addEventListener('sessionend', () => {
+      // Остановка игры при выходе из VR-режима
     });
   </script>
 </body>
