@@ -2,168 +2,140 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <title>Neon Breach Quest Edition</title>
-    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v6.1.1/dist/aframe-extras.min.js"></script>
-
+    <title>Neon Quest VR</title>
+    <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script>
-      // Глобальное состояние
-      let gameState = {
-        hp: 100, ammo: 15, level: 1, enemiesLeft: 0, active: false
-      };
-
-      // Логика игры
-      AFRAME.registerComponent('game-logic', {
-        init: function () {
-          this.hud = document.querySelector('#hud-text');
-          this.scene = this.el;
-          
-          this.el.addEventListener('enemy-hit', () => {
-            gameState.enemiesLeft--;
-            this.updateHUD();
-            if (gameState.enemiesLeft <= 0) this.nextLevel();
-          });
-
-          this.el.addEventListener('player-damaged', () => {
-            gameState.hp -= 10;
-            this.updateHUD();
-            if (gameState.hp <= 0) location.reload();
-          });
-        },
-        updateHUD: function() {
-          this.hud.setAttribute('value', `LEVEL: ${gameState.level} | HP: ${gameState.hp} | AMMO: ${gameState.ammo}`);
-        },
-        nextLevel: function() {
-          gameState.level++;
-          this.el.components.level_builder.generate();
-        }
-      });
-
-      // Генератор уровня
-      AFRAME.registerComponent('level-builder', {
-        init: function() { 
-          if(gameState.active) this.generate(); 
-        },
-        generate: function() {
-          // Чистим старое
-          const old = document.querySelectorAll('.obj');
-          old.forEach(el => el.parentNode.removeChild(el));
-
-          // Стены
-          for (let i = 0; i < 10; i++) {
-            let wall = document.createElement('a-box');
-            wall.setAttribute('class', 'obj');
-            wall.setAttribute('position', `${(Math.random()-0.5)*30} 1.5 ${(Math.random()-0.5)*30}`);
-            wall.setAttribute('color', '#111');
-            wall.setAttribute('scale', '2 3 2');
-            wall.setAttribute('material', 'emissive: #00ff44; emissiveIntensity: 0.1');
-            this.el.appendChild(wall);
-          }
-
-          // Враги
-          gameState.enemiesLeft = 3 + gameState.level;
-          for (let i = 0; i < gameState.enemiesLeft; i++) {
-            let en = document.createElement('a-sphere');
-            en.setAttribute('class', 'obj enemy');
-            en.setAttribute('color', '#ff0044');
-            en.setAttribute('radius', '0.5');
-            en.setAttribute('position', `${(Math.random()-0.5)*40} 1.5 -15`);
-            en.setAttribute('enemy-ai', '');
-            this.el.appendChild(en);
-          }
-          this.el.components['game-logic'].updateHUD();
-        }
-      });
-
-      // ИИ Врага
-      AFRAME.registerComponent('enemy-ai', {
-        tick: function() {
-          let playerPos = document.querySelector('#camera').object3D.position;
-          let enemyPos = this.el.object3D.position;
-          let dir = new THREE.Vector3().subVectors(playerPos, enemyPos).normalize();
-          this.el.object3D.position.addScaledVector(dir, 0.03);
-
-          if (enemyPos.distanceTo(playerPos) < 1.5) {
-            this.el.sceneEl.emit('player-damaged');
-            this.el.parentNode.removeChild(this.el);
-            this.el.sceneEl.emit('enemy-hit');
-          }
-        }
-      });
-
-      // Стрельба
+      // 1. ЛОГИКА СТРЕЛЬБЫ И ПОПАДАНИЙ
       AFRAME.registerComponent('shooter', {
-        init: function() {
+        init: function () {
           this.el.addEventListener('triggerdown', () => {
-            if (gameState.ammo > 0) {
-              this.shoot();
-              gameState.ammo--;
-              this.el.sceneEl.components['game-logic'].updateHUD();
-            } else {
-              setTimeout(() => { gameState.ammo = 15; }, 1500); // Авто-релоад
-            }
+            this.shoot();
           });
         },
-        shoot: function() {
-          let bullet = document.createElement('a-sphere');
+        shoot: function () {
+          // Создаем пулю
+          const bullet = document.createElement('a-sphere');
           bullet.setAttribute('radius', '0.05');
-          bullet.setAttribute('color', '#00fbff');
+          bullet.setAttribute('color', '#00ffff');
           
-          let worldPos = new THREE.Vector3();
-          this.el.object3D.getWorldPosition(worldPos);
-          bullet.setAttribute('position', worldPos);
+          // Определяем позицию и направление пушки
+          const position = new THREE.Vector3();
+          this.el.object3D.getWorldPosition(position);
+          const direction = new THREE.Vector3(0, 0, -1);
+          direction.applyQuaternion(this.el.object3D.quaternion);
           
-          let dir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.el.object3D.quaternion);
+          bullet.setAttribute('position', position);
           this.el.sceneEl.appendChild(bullet);
 
-          let interval = setInterval(() => {
-            bullet.object3D.position.addScaledVector(dir, 0.5);
-            let enemies = document.querySelectorAll('.enemy');
-            enemies.forEach(en => {
-              if (bullet.object3D.position.distanceTo(en.object3D.position) < 0.7) {
-                en.parentNode.removeChild(en);
+          // Движение пули через интервал (самый надежный метод)
+          const timer = setInterval(() => {
+            const pos = bullet.getAttribute('position');
+            bullet.setAttribute('position', {
+              x: pos.x + direction.x * 0.5,
+              y: pos.y + direction.y * 0.5,
+              z: pos.z + direction.z * 0.5
+            });
+
+            // Проверка попадания во врагов
+            const enemies = document.querySelectorAll('.enemy');
+            enemies.forEach(enemy => {
+              const enemyPos = enemy.getAttribute('position');
+              const dist = new THREE.Vector3(pos.x, pos.y, pos.z).distanceTo(enemyPos);
+              if (dist < 0.8) {
+                enemy.parentNode.removeChild(enemy);
                 bullet.parentNode.removeChild(bullet);
-                this.el.sceneEl.emit('enemy-hit');
-                clearInterval(interval);
+                clearInterval(timer);
+                checkWin();
               }
             });
           }, 20);
-          setTimeout(() => { if(bullet.parentNode) bullet.parentNode.removeChild(bullet); clearInterval(interval); }, 2000);
+
+          // Удаляем пулю через 2 сек, если не попала
+          setTimeout(() => {
+            if (bullet.parentNode) {
+              bullet.parentNode.removeChild(bullet);
+              clearInterval(timer);
+            }
+          }, 2000);
         }
       });
 
-      // Кнопка старта
-      function startGame() {
-        gameState.active = true;
-        document.querySelector('#menu').setAttribute('visible', 'false');
-        document.querySelector('a-scene').components['level-builder'].generate();
+      // 2. ГЕНЕРАЦИЯ УРОВНЯ
+      function spawnLevel() {
+        const scene = document.querySelector('a-scene');
+        const levelNum = window.currentLevel || 1;
+        
+        // Удаляем старые объекты (кроме игрока и света)
+        document.querySelectorAll('.level-item').forEach(el => el.parentNode.removeChild(el));
+
+        // Спавним стены
+        for (let i = 0; i < 10; i++) {
+          const wall = document.createElement('a-box');
+          wall.setAttribute('class', 'level-item');
+          wall.setAttribute('position', `${(Math.random()-0.5)*20} 1.5 ${(Math.random()-0.5)*20}`);
+          wall.setAttribute('color', '#222');
+          wall.setAttribute('width', '2');
+          wall.setAttribute('height', '3');
+          scene.appendChild(wall);
+        }
+
+        // Спавним врагов
+        for (let i = 0; i < 3 + levelNum; i++) {
+          const enemy = document.createElement('a-octahedron');
+          enemy.setAttribute('class', 'level-item enemy');
+          enemy.setAttribute('position', `${(Math.random()-0.5)*30} 1.5 -10`);
+          enemy.setAttribute('color', '#ff0044');
+          enemy.setAttribute('radius', '0.5');
+          scene.appendChild(enemy);
+        }
+        
+        updateHUD();
       }
+
+      function checkWin() {
+        if (document.querySelectorAll('.enemy').length === 0) {
+          window.currentLevel = (window.currentLevel || 1) + 1;
+          spawnLevel();
+        }
+      }
+
+      function updateHUD() {
+        const hud = document.querySelector('#hud');
+        hud.setAttribute('value', `LEVEL: ${window.currentLevel || 1}`);
+      }
+
+      // Запуск при клике (вход в игру)
+      window.addEventListener('click', () => {
+        if (!window.gameStarted) {
+          window.gameStarted = true;
+          window.currentLevel = 1;
+          spawnLevel();
+          document.querySelector('#msg').setAttribute('visible', 'false');
+        }
+      });
     </script>
   </head>
   <body>
-    <a-scene game-logic level-builder>
-      <a-sky color="#050505"></a-sky>
-      <a-grid material="gridColor: #00ff44; color: #000"></a-grid>
+    <a-scene background="color: #000">
+      
+      <a-entity position="0 0 0" geometry="primitive: plane; width: 100; height: 100" 
+                rotation="-90 0 0" material="src: url(https://i.imgur.com/7XU6u7M.png); repeat: 50 50; color: #00ff44"></a-entity>
+      <a-light type="ambient" color="#fff" intensity="0.5"></a-light>
+      <a-light type="point" position="0 5 0" intensity="1"></a-light>
 
-      <a-entity id="menu" position="0 1.6 -2">
-        <a-text value="NEON BREACH\nClick Trigger to Start" align="center" color="#00fbff"></a-text>
-        <a-box position="0 -0.5 0" scale="1 0.5 0.1" color="#222" onclick="startGame()"></a-box>
-      </a-entity>
-
-      <a-entity id="rig" position="0 0 0" movement-controls="fly: false">
-        <a-entity id="camera" camera position="0 1.6 0" look-controls>
-          <a-text id="hud-text" value="LEVEL 1" position="0 -0.5 -1" align="center" width="2" color="#00fbff"></a-text>
+      <a-entity id="rig" position="0 0 0">
+        <a-camera id="cam">
+          <a-text id="hud" value="CLICK TO START" position="0 -0.5 -1" align="center" width="2" color="#00ffff"></a-text>
+          <a-text id="msg" value="PRESS TRIGGER" position="0 0 -1.2" align="center" width="4" color="#fff"></a-text>
+        </a-camera>
+        
+        <a-entity oculus-touch-controls="hand: right" shooter>
+          <a-box scale="0.1 0.1 0.4" position="0 0 -0.2" color="#444"></a-box>
         </a-entity>
-        <a-entity laser-controls="hand: left"></a-entity>
-        <a-entity laser-controls="hand: right" shooter></a-entity>
+        
+        <a-entity oculus-touch-controls="hand: left"></a-entity>
       </a-entity>
-    </a-scene>
 
-    <script>
-      // Хак для старта на Quest
-      window.addEventListener('click', () => {
-        if (!gameState.active) startGame();
-      });
-    </script>
+    </a-scene>
   </body>
 </html>
