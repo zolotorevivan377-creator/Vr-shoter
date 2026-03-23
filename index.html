@@ -1,227 +1,196 @@
 <!DOCTYPE html>
->
-<head>
-    <meta charset="utf-8">
- <title>VR FPS Shooter - Procedural Levels</title>
-    <script src="https://aframe.io/releases/1.5.0frame.min.js"></>
-    <script src="https://unpkg.com/aframetras@7.4.0/dist/aframe-extras.js"></script>
- <script src="://.jsdelivr.net/npm/a-physics-system@4.2.1/dist/a-physics-system.min.jsscript>
+<html<head>
+    <meta="utf-8">
+ <title>VR Shooter - Procedural Levels</title    <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+    <script src="://unpkg.com/aframe-extras@7..0/dist/aframetras.min.js"></script    <script src="://cdn.jsdelivr.net/npmframe-physics-system@.2.1/distframe-physics-system.min"></script>
 </head>
 <body>
-    <a-scene        vr-mode-ui="enabled: true"
-        physicsdebug: false"
-        background="color: #87CE"
-        fog="type: linear; color: #87CEEB; near: 10; far: 50">
-        
-        <!-- Assets -->
-        <a>
-            <a-mixin id="enemy" 
-                     geometry="primitive: box; width: 0.5; height: 15; depth:0.3"
+    <a-scene 
+        vr-mode-ui="enabled: true"
+        physics="driver: cannon; gravity: -9.8"
+        background="color: #87CEEB"
+        fog="type: linear; color: #87EB; near: ; far: 50        
+        <!-- Assets (mixins for reuse) -->
+        <a-assets>
+            <aixin id="enemy"                     geometry="primitive: box width: 05; height: 1.5; depth: 0.3"
                      material="color: red"
-                     physics="shape: box; mass 1; fixed: false"
-                     animationproperty: position; to: 0 0 -5; dur: 5000; loop:; dir: alternate; easing: easeInOutQuad"></a-mixin>
-            <a-m id="wall" 
-                     geometry=": box; width:1; height: 2; depth: 0.1"
+                     class="enemy"
+                     physics="shape: box; mass: 1; fixed: false"></a-mixin>
+            <a-mixin id="wall" 
+                     geometry="primitive: box; width: 4; height: 2; depth: 0.1"
                      material="color: gray"
-                     physicsshape: box; mass 0; fixed:"></a-mixin>
-            <a-mixin="floor" 
-                    ="primitive: plane; width: 50; height: 50"
-                     material=": green"
-                     physics=": plane; mass: 0;: true"
-                     rotation="-90 0 "></a-mixin>
-            <!-- Simple gun model -->
-            <a-mixin id="gun"                     geometry="primitive: box width: 0.1; height: 0.1; depth:0.5"
-                    ="color: black"
-                     position=" 0 -0."></a-mixin>
- </a-assets>
+                     physicsshape: box; mass: 0; fixed: truea-mixin>
+            <a-mixin id="floor" 
+                     geometryprimitive: plane; width 50; height:50"
+                     material=": #90EE90"
+                    ="shape: plane; mass 0; fixed true"
+                     rotation="-90 00"></a-mixin            <!-- Simple gun visual -->
+            <aixin id="gun"
+                     geometry="primitive box; width: .05; height: 0.05; depth: 0.3"
+                     material="color: black"
+                     position="0.2  -0.3  -0.5"></a-m>
+        </a-assets>
 
-        Player Rig -->
-        <a-entity="rig" movement-controls="constrainToNavMesh: false" 
-                  position="0 1.6 0            <a-camera id="camera" position="0 00" 
-                      look-controls 
-                      raycaster="objects: .enemy; far: 100">
+        <!-- Player Rig -->
+        <a-entity id="rig 
+                  movement-controlsconstrainToNavMesh:; speed: 0.1"
+                  position="0 0 0">
+            <a-camera id="camera 
+                      position="0 1.6 0"
+                      look-controls
+                      raycaster="objects:enemy; far: 100">
                 <!-- Gun attached to camera -->
-                <a mixin="gun"></a-entity>
-           a-camera>
-            
-            Hand controllers for shooting -->
-            <a id="left-hand"                      hand-controls="hand: left; model: true"
-                      raycaster="model: true; hand: left"
-                      laser-controls="hand: left"></a>
-            <a-entity="right-hand" 
- hand-controls="hand:; model: true"
- raycaster="model:; hand: right"
- laser-controls="hand:"
-                      shoot="hand: right"></a-entity>
+                <a mixin="gun"></a>
+            </a-camera            
+            <!-- Hand controllers            <a-entity idleft-hand" 
+                     -controls="hand: left; model: true"
+                      laser-controls="hand:"></a-entity>
+           a-entity id="right" 
+                      hand-controls="hand: right; model true"
+                      laser-controls="hand: right"
+ raycaster="objects:enemy; far: "
+                      shoot></a-entity>
        a-entity>
 
         <!-- -->
-        <a-entity="type: ambient; color: #445451; intensity: .5"></a>
-        <a-entity lighttype: directional; color: #FFFFFF; intensity: 0.7" 
+        <a-entity="type: ambient; color: #445451; intensity: 0.5"></a-entity>
+        <a-entity light="type: directional; color: #FFFFFF; intensity: 0.7" 
                   position="-1 1 0" 
-                  rotation="-60 0 0"></-entity>
+                  rotation="-60 0 0"></a-entity>
 
-        <!-- UI for level info -->
-        <a id="level-text" 
+        <!-- UI Text -->
+        <a-text id="level-text" 
                 value="Level 1 - Clear all enemies!" 
-                position=" 2 -3" 
+                position="0 1.5 -3" 
                 align="center" 
- color="white" 
+                color="white" 
                 scale="2 2 2"
- visible="true"></a-text>
+                visible="true"></a-text>
 
-        <!-- -->
-        <a-entity="floor" mixin="" position="0  0"></a-entity>
+        <!-- Initial Floor -->
+        <a-entity mixin="floor" position="0 0 0"></a-entity>
 
- <!-- Game Manager -->
-        <a-entity id="game" 
-                  script="src: #gameScript; level: 1;Left: 0"></-entity>
+        <!-- Game Manager -->
+        <a-entity id="game-manager" 
+                  game-script="level:1; enemiesLeft:0"></a-entity>
 
-    </a-scene>
+ </a-scene>
 
- <!-- Custom Scripts -->
-   script>
-        // Shooting Component
-        AFRAME.registerComponent('shoot', {
-            init function () {
-                this.el.addEventListener('raycaster-intersection', (evt) => {
-                    constEl = evt.detail.els[0];
-                    if (hit && hitEl.classList('enemy')) {
-                        Remove enemy
-                        hitEl.remove();
-                        // Update enemies count
-                        const gameManager = documentElementById('-manager');
-                        gameManager.gameScript.updateEnemies();
+    <!-- Custom Components -->
+    <script>
+        Shooting Component (attached to right hand)
+        AFRAMEComponent('shoot', {
+            init: function () {
+                this.elEventListener('raycastersection', (evt) => {
+                    const hitEl = evt.detail.els[0];
+                    if (hitEl && hitEl.classList.contains('enemy')) {
+                        // Remove enemy
+                        hitEl.parentNode.removeChild(hitEl);
+                        // Update game manager
+                        const gameManager =.getElementById('game-manager');
+                        if (Manager && gameManager.components['game-script']) {
+                            gameManager.components['game-script'].updateEnemies();
+                        }
                     }
                 });
             }
-        });
-
-        // Game Manager Script
-        A.registerComponent('gameScript {
+               // Game Manager Script        AFRAME.registerComponentgame-script', {
             schema: {
-                level { type: 'int', default: 1 },
-                enemiesLeft: type: 'int',: 0 }
+                level: { type: 'int', default: 1 },
+                enemiesLeft: { type: 'int', default:  }
             },
 
             init: function () {
                 this.enemies = [];
                 this.generateLevel();
-                this.sceneEl.addEventListener('enter-vr', () => {
-                    console.log('Entered VR');
-                });
             },
 
- generateLevel: function ()                const level = this.level;
-                const = this.el.sceneEl;
+            generateLevel: function () {
+                const level = this.data.level;
+                const sceneEl = this.el.sceneEl;
 
-                // previous level entities (keep floor, rig, etc.)
-                oldEnemies = document.querySelectorAll('.enemy');
- const oldWalls = documentSelectorAll('.wall');
- oldEnemies.forEach(el el.remove());
-                old.forEach(el => el());
+                // Clear previous level entities (except floor, rig, lights)
+                const oldEnemies = document.querySelectorAll('.enemy');
+                const oldWalls = document.querySelectorAll('.wall');
+                oldEnemies.forEach(el => el.parentNode.removeChild(el));
+                oldWalls.forEach(el => el.parentNode.removeChild(el));
 
-                this.enemies [];
-                this.data.enLeft = 5 + level * ; // Increasing enemies per level
+                this.enemies =                this.data.enemies = 5 + level 2; // Increase per level
 
- // Generate random map: floor is already there, add walls and enemies
-                for (let i =0; i <  + level * ; i++) { Random walls
-                    const = document.createElement('-entity');
-                    wall.set('mixin', '');
-                    const x =Math.random() - .5) * 40;
-                    const z =Math.random() -0.5) *40;
-                    const rotY = Math.random() 360;
-                    wallAttribute('position', `${} 1 ${z}`);
-                    wall.set('rotation.y', rotY);
-                    scene.appendChild(wall);
- wall.classList.add('wall');
-                }
+                Generate random walls (maze-like barriers)
+                for ( i = 0; < 10 + * 2; i++) {
+                    const wall = document.createElement('a-entity');
+                    wall.setAttribute('mixin', 'wall');
+                   .classList.add('wall');
+                    const x = (.random() - 0.5) * 40                    const z = (Math.random() - 05) * 40;
+                    const rotY =.random() * 360;
+                    wall.setAttribute('position', `${x} 1 ${z}`);
+                    wall.setAttribute('rotation', `0 ${rotY} 0`);
+                    sceneEl.appendChild(wall);
+ }
 
-                Spawn enemies randomly, avoiding player start
-                for ( i = 0; < this.data.enLeft; i++) {
-                    enemy = document.createElementa-entity');
-                    enemy.set('mixin', '');
-                    const x = (Math.random() 0.5) 30 + 5; // Avoid center
+                // Spawn enemies, avoiding player start area
+                for (let i = 0; i < this.data.enemiesLeft; i++) {
+                    const enemy = document.createElement('a-entity');
+                    enemy.setAttribute('mixin', 'enemy');
+                    const x = (Math.random() - 0.5) * 30 + 5; // Offset from center
                     const z = (Math.random() - 0.5) * 30 + 5;
-                   .setAttribute('position `${x} 0z}`);
-                    enemyAttribute('class', '');
+                    enemy.setAttribute('position', `${x} 0.75 ${z}`);
                     
-                    // Make enemy move towards player occasionally
-                    enemy.addListener('componentchanged', (evt) => {
-                        if (evt.detail.name === 'position') {
-                            // Simple AI: move towards player if close
-                            const player = document.getElementById('rigobject3D.position;
-                            const enemy = enemy.object3D;
-                            const dist = playerPos.distanceTo(enemy);
-                            if (dist 10 && Math.random() < 0.01) { // Slow movement
-                                const = new THREE.Vector().subVectors(playerPos enemyPos).normalize                                enemyPos.add(dir.multiplyScalar(.1));
-                               .setAttribute('position',Pos);
+                    // Simple AI: occasional movement towards player
+                    enemy.addEventListener('componentchanged', (evt) => {
+                        if (evt.detail.name === 'position')                            const playerPos = document.querySelector('#rig').object3D.position;
+                            const enemyPos = enemy.object3D.position;
+                            const distance = playerPos.distanceTo(enemyPos);
+                            if (distance < 10 && Math.random() < 0.01) { // Slow, random movement
+                                const direction = new THREE.Vector3().subVectors(playerPos, enemyPos).normalize();
+                                enemyPos.add(direction.multiplyScalar(0.1));
+                                enemy.setAttribute('position enemyPos);
                             }
-                                           });
+ }
+                    });
 
                     scene.appendChild(enemy);
                     this.enemies.push(enemy);
  }
 
-                // Update UI                const levelText document.getElementByIdlevel-text');
-                level.setAttribute('value',Level ${level} - Left: ${this.data.enemiesLeft                levelText.set('visible', 'true                // Show level start message briefly
-                setTimeout(() {
-                    levelTextAttribute('visible', '');
+                // Update UI                const levelText = document.getElementById('-text');
+                levelTextAttribute('value', `Level ${level} - Enemies: ${this.data.enemiesLeft}`);
+                levelText.setAttribute('visible', 'true');
+                
+                // Hide start message after 3 seconds
+                setTimeout(() => {
+                    levelText.set('visible', 'false');
                 }, 3000);
+
+ console.log(`Level ${level} generated with ${this.data.enemiesLeft} enemies.`);
             },
 
- updateEnemies: function ()                this.data.enemiesLeft--;
-                const remaining = this.enemies.filter(e => e.parentNode !== null).length;
+            updateEnemies: function () {
+                this.enemiesLeft--;
+                const remaining = document.querySelectorAll('.enemy').length;
                 console.log(`Enemies left: ${remaining}`);
 
- const levelText = documentElementById('level');
-                levelText.set('value', `Enemies Remaining: ${remaining}`);
-                level.setAttribute('visible', '');
+                const levelText = document.getElementByIdlevel-text');
+                levelText.setAttribute('value', `Enemies Remaining: ${remaining}`);
+                levelText.setAttribute('visible', 'true');
 
-                if ( === 0) {
- // Level complete
-                   Text.setAttribute('', 'Level Complete! Next level starting...');
-                    setTimeout(() => {
-                        this.data.level++;
-                       .generateLevel();
-                    }, 2000);
+                if (remaining === 0) {
+                    levelText.setAttribute('value 'Level Complete! Next level starting...                    setTimeout(() =>                        this.data.level++;
+ this.generateLevel();
+                    2000);
                 } else {
-                    set(() => {
+                    setTimeout(() => {
                         levelText.setAttribute('visible', 'false');
-                    }, 0);
+                    }, 2000);
                 }
-                   });
+            }
+        });
     </script>
 
-    <!-- Instructions for running -->
-    <p style="position: absolute; top 10px; left 10px; color white; z-index:100;">
-        Save this as an HTML, host it on a local server (e.g.,: python -m http.server and open in Meta Browser. Enter VR mode for full.
-        Shooting: Point right controller and trigger to shoot at red enemy boxes. Clear all to advance levels.
-    </p</body>
-</html```
-
-### Инструкции по запу:
-1. **Сохраните код**: Скопируйте весь код выше в файл с расширением `.html` (например, `vr-shooter.html`).
-. **Запустите локальный сервер**: Meta Quest Browser требует HTTPS или локальный сервер для WebXR. Используйте простой сервер:
-   - Если у вас Python 3: Откройте терминал папке с фай и выполните `python -m http.server 800`.
-   - Или использу Node.js с `npx http-server`.
-   - Альтернатива: Загрузите на Git Pages или любой хостинг с HTTPS.
-3. **Откройте Meta Quest**:
-   - Наденьте очки Quest.
-   - Откройте Browser (браузер) в Quest.
-   - Перей по адресу: `http://<your-ip>:8000/vr-shooter.html (замените `<your-ip>` IP вашего компьютера в той же сети; найдите IP командой `ipconfig или `ifconfig`   - В браузере Quest нажмите кнопку VR (очки) для входа в VR-режим.
-4.Геймплей:
-   - Используйте контролл Quest: Правый триггер для стрельбы (луч от контроллера бьёт по врагам).
-   - Двигайтесь с помощью thumbstick (виртуальное перемещение).
-   Уровни генери случайно: стены, враги (красные боксы) на зелёном поле.
-   -чистите всех врагов — уровень завершится, начнётся следующий (с больше врагами).
-   - Т в VR покажет прогресс и переходы.
-
-### Ограничения и особенности:
- **Простая генерация**: Кар — случайные стены и враги плоскости. Враги медленно двигаются к игроку.
-- **Физика**: Включена базовая (A- Physics), но не идеальна для сложных коллизий.
-- **Производительность**: Для Quest оптимизировано просто; если лагает, уменьшите количество стен/врагов в коде.
-- **WebXR**: Работает в браузере без установки. Если проблемы — убедитесь, что Quest обновлён.
-- **ширение**: Это базовая версия. Для большего реализма добавьте модели, звуки или лучшую AI, но код остаётся самодостат.
-
-Если нужно доработ (например, добавить звуки или лучшие модели), дайте знать
+    <!-- Instructions (visible on desktop) -->
+    <div style="position: absolute; top: 10px; left: 10px; color: white; z-index: 100; background: rgba(0,0,0,0.5); padding: 10px        <p>Save as HTML, run local server (e.g., python -m http.server 8000), open Quest Browser: http://&lt;your-ip&gt;:8000/vr-shooter.html</p>
+        <p>Enter VR mode. Use right trigger to shoot red enemies. Clear all to advance levels.</p>
+    </div>
+</body>
+html>
