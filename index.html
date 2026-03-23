@@ -2,57 +2,57 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>VR Quest Shooter: Battle Ready</title>
+    <title>VR Quest Shooter: Fixed 3.0</title>
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://unpkg.com/aframe-environment-component@1.3.2/dist/aframe-environment-component.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
 </head>
 <body>
-    <a-scene>
+    <a-scene background="color: #111">
         <a-assets>
-            <a-mixin id="bullet" geometry="primitive: sphere; radius: 0.07" material="color: #FFEF00; emissive: #FFEF00"></a-mixin>
-            <a-mixin id="enemy-bullet" geometry="primitive: sphere; radius: 0.1" material="color: #FF4500; emissive: #FF4500"></a-mixin>
-            <audio id="snd-shoot" src="https://cdn.aframe.io/360-video-example/guerrilla_sound_design_gun_shot.mp3" preload="auto"></audio>
-            <audio id="snd-hit" src="https://cdn.aframe.io/examples/ar/models/reticle/reticle.mp3" preload="auto"></audio>
+            <a-mixin id="bullet" geometry="primitive: sphere; radius: 0.05" material="color: yellow; shader: flat"></a-mixin>
+            <a-mixin id="en-bullet" geometry="primitive: sphere; radius: 0.1" material="color: #ff6600; shader: flat"></a-mixin>
         </a-assets>
 
-        <a-entity id="env" environment="preset: logic; dressingAmount: 20; ground: flat"></a-entity>
+        <a-entity environment="preset: logic; dressingAmount: 0; groundColor: #222; grid: cross; skyType: gradient"></a-entity>
+        <a-light type="ambient" intensity="0.7"></a-light>
+        <a-light type="directional" position="1 4 1" intensity="0.5"></a-light>
 
         <a-entity id="rig" movement-controls="speed: 0.15">
             <a-camera id="camera" look-controls position="0 1.6 0">
-                <a-plane id="damage-flash" position="0 0 -0.1" width="2" height="2" material="color: red; opacity: 0" visible="false"></a-plane>
+                <a-text id="hud" value="PRESS TRIGGER TO START" position="0 -0.5 -1.2" scale="0.5 0.5 0.5" align="center" color="#00FF00"></a-text>
                 
-                <a-text id="hud" value="HP: 100 | LEVEL: 1" position="0 -0.4 -1" scale="0.4 0.4 0.4" align="center" color="#00FF00"></a-text>
-                
-                <a-entity id="menu" position="0 0 -1.2">
-                    <a-plane color="#111" width="2" height="1" opacity="0.9">
-                        <a-text id="menu-text" value="VR ROGUELIKE\n\n- Move: Left Stick\n- Shoot: Right Trigger\n\nClick Trigger to Start" align="center" width="3"></a-text>
-                    </a-plane>
+                <a-entity id="menu" position="0 0.2 -1.5">
+                    <a-text value="VR SHOOTER\n\nUse Left Stick to Move\nRight Trigger to Shoot" align="center" width="4"></a-text>
                 </a-entity>
             </a-camera>
 
             <a-entity oculus-touch-controls="hand: left"></a-entity>
-            <a-entity id="rightHand" oculus-touch-controls="hand: right" shooter-controller>
-                <a-box width="0.05" height="0.08" depth="0.2" position="0 0 -0.1" material="color: #444"></a-box>
-            </a-entity>
+            <a-entity id="rightHand" oculus-touch-controls="hand: right" shooter-logic></a-entity>
         </a-entity>
 
-        <a-entity id="enemies-container"></a-entity>
-        <a-entity id="bullets-container"></a-entity>
-
-        <a-entity id="global-snd-shoot" sound="src: #snd-shoot; poolSize: 5"></a-entity>
-        <a-entity id="global-snd-hit" sound="src: #snd-hit; poolSize: 5; volume: 2"></a-entity>
+        <a-entity id="enemies-group"></a-entity>
+        <a-entity id="bullets-group"></a-entity>
     </a-scene>
 
     <script>
-        let game = {
-            active: false,
-            hp: 100,
-            level: 1,
-            enemies: 0
-        };
+        let game = { active: false, hp: 100, lvl: 1, enemies: 0 };
+        
+        // Аудио-движок (работает без файлов)
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSound(freq, type, duration) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = type;
+            osc.frequency.value = freq;
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start();
+            gain.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + duration);
+            osc.stop(audioCtx.currentTime + duration);
+        }
 
-        AFRAME.registerComponent('shooter-controller', {
+        AFRAME.registerComponent('shooter-logic', {
             init: function () {
                 this.el.addEventListener('triggerdown', () => {
                     if (!game.active) startGame();
@@ -60,157 +60,136 @@
                 });
             },
             shoot: function () {
-                const bullet = document.createElement('a-entity');
-                bullet.setAttribute('mixin', 'bullet');
+                playSound(400, 'square', 0.1); // Звук выстрела
+                const b = document.createElement('a-entity');
+                b.setAttribute('mixin', 'bullet');
                 const pos = new THREE.Vector3();
                 this.el.object3D.getWorldPosition(pos);
-                const rot = new THREE.Quaternion();
-                this.el.object3D.getWorldQuaternion(rot);
-                const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(rot);
-
-                bullet.setAttribute('position', pos);
-                bullet.setAttribute('bullet-logic', { dirX: dir.x, dirY: dir.y, dirZ: dir.z });
-                document.querySelector('#bullets-container').appendChild(bullet);
+                const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.el.object3D.getWorldQuaternion(new THREE.Quaternion()));
                 
-                document.querySelector('#global-snd-shoot').components.sound.stopSound();
-                document.querySelector('#global-snd-shoot').components.sound.playSound();
+                b.setAttribute('position', pos);
+                b.setAttribute('move-bullet', { dx: dir.x, dy: dir.y, dz: dir.z, isEn: false });
+                document.querySelector('#bullets-group').appendChild(b);
 
                 const gp = this.el.components['oculus-touch-controls'].gamepad;
                 if (gp && gp.hapticActuators) gp.hapticActuators[0].pulse(0.5, 50);
             }
         });
 
-        AFRAME.registerComponent('bullet-logic', {
-            schema: { dirX: {type:'number'}, dirY: {type:'number'}, dirZ: {type:'number'}, speed: {default: 0.6}, isEnemy: {default: false} },
+        AFRAME.registerComponent('move-bullet', {
+            schema: { dx: {type:'number'}, dy: {type:'number'}, dz: {type:'number'}, speed: {default: 0.5}, isEn: {default: false} },
             tick: function () {
-                let pos = this.el.getAttribute('position');
-                pos.x += this.data.dirX * this.data.speed;
-                pos.y += this.data.dirY * this.data.speed;
-                pos.z += this.data.dirZ * this.data.speed;
-                this.el.setAttribute('position', pos);
+                let p = this.el.getAttribute('position');
+                p.x += this.data.dx * this.data.speed;
+                p.y += this.data.dy * this.data.speed;
+                p.z += this.data.dz * this.data.speed;
+                this.el.setAttribute('position', p);
 
-                if (!this.data.isEnemy) {
+                if (!this.data.isEn) {
                     document.querySelectorAll('.enemy').forEach(en => {
-                        const enPos = en.getAttribute('position');
-                        if (new THREE.Vector3(pos.x, pos.y, pos.z).distanceTo(new THREE.Vector3(enPos.x, enPos.y, enPos.z)) < 0.7) {
+                        let ep = en.getAttribute('position');
+                        if (new THREE.Vector3(p.x, p.y, p.z).distanceTo(ep) < 0.8) {
                             en.parentNode.removeChild(en);
                             if(this.el.parentNode) this.el.parentNode.removeChild(this.el);
                             game.enemies--;
                             updateHUD();
-                            if (game.enemies <= 0) nextLevel();
+                            if(game.enemies <= 0) nextLevel();
                         }
                     });
                 } else {
-                    const playerPos = document.querySelector('#camera').object3D.position;
-                    if (new THREE.Vector3(pos.x, pos.y, pos.z).distanceTo(playerPos) < 0.4) {
-                        takeDamage(10);
+                    let pp = document.querySelector('#camera').object3D.position;
+                    if (new THREE.Vector3(p.x, p.y, p.z).distanceTo(pp) < 0.5) {
+                        hitPlayer();
                         if(this.el.parentNode) this.el.parentNode.removeChild(this.el);
                     }
                 }
-
-                if (Math.abs(pos.z) > 40 || Math.abs(pos.x) > 40) {
-                    if(this.el.parentNode) this.el.parentNode.removeChild(this.el);
-                }
+                if (Math.abs(p.z) > 40) this.el.parentNode && this.el.parentNode.removeChild(this.el);
             }
         });
 
-        AFRAME.registerComponent('enemy-ai', {
-            schema: { type: {default: 'chaser'}, speed: {default: 0.02}, lastShoot: {default: 0} },
+        AFRAME.registerComponent('enemy-behavior', {
+            schema: { type: {default: 'chaser'}, lastShoot: {default: 0} },
             tick: function (time) {
-                const playerPos = document.querySelector('#camera').object3D.position;
-                const enemyPos = this.el.object3D.position;
-                const dist = new THREE.Vector3(enemyPos.x, 0, enemyPos.z).distanceTo(new THREE.Vector3(playerPos.x, 0, playerPos.z));
+                if (!game.active) return;
+                let pp = document.querySelector('#camera').object3D.position;
+                let ep = this.el.object3D.position;
+                let dist = new THREE.Vector3(ep.x, 0, ep.z).distanceTo(new THREE.Vector3(pp.x, 0, pp.z));
 
                 if (this.data.type === 'chaser') {
-                    const angle = Math.atan2(playerPos.x - enemyPos.x, playerPos.z - enemyPos.z);
-                    enemyPos.x += Math.sin(angle) * this.data.speed;
-                    enemyPos.z += Math.cos(angle) * this.data.speed;
-                    if (dist < 0.8) takeDamage(0.5); // Урон от касания (постепенный)
+                    let angle = Math.atan2(pp.x - ep.x, pp.z - ep.z);
+                    ep.x += Math.sin(angle) * 0.03;
+                    ep.z += Math.cos(angle) * 0.03;
+                    if (dist < 1) hitPlayer(0.2); 
                 } else {
-                    // Стрелок: держит дистанцию и стреляет
-                    if (dist > 6) {
-                        const angle = Math.atan2(playerPos.x - enemyPos.x, playerPos.z - enemyPos.z);
-                        enemyPos.x += Math.sin(angle) * this.data.speed;
-                        enemyPos.z += Math.cos(angle) * this.data.speed;
-                    } else if (time - this.data.lastShoot > 2500) {
-                        this.shootPlayer(playerPos, enemyPos);
+                    if (dist > 7) {
+                        let angle = Math.atan2(pp.x - ep.x, pp.z - ep.z);
+                        ep.x += Math.sin(angle) * 0.02;
+                        ep.z += Math.cos(angle) * 0.02;
+                    } else if (time - this.data.lastShoot > 3000) {
+                        this.fire(pp, ep);
                         this.data.lastShoot = time;
                     }
                 }
-                this.el.setAttribute('position', enemyPos);
+                this.el.setAttribute('position', ep);
             },
-            shootPlayer: function(pPos, ePos) {
-                const eb = document.createElement('a-entity');
-                eb.setAttribute('mixin', 'enemy-bullet');
-                const dir = new THREE.Vector3().subVectors(pPos, ePos).normalize();
-                eb.setAttribute('position', {x: ePos.x, y: 1.2, z: ePos.z});
-                eb.setAttribute('bullet-logic', { dirX: dir.x, dirY: dir.y, dirZ: dir.z, speed: 0.2, isEnemy: true });
-                document.querySelector('#bullets-container').appendChild(eb);
+            fire: function(pp, ep) {
+                let eb = document.createElement('a-entity');
+                eb.setAttribute('mixin', 'en-bullet');
+                let dir = new THREE.Vector3().subVectors(pp, ep).normalize();
+                eb.setAttribute('position', {x: ep.x, y: 1.2, z: ep.z});
+                eb.setAttribute('move-bullet', { dx: dir.x, dy: dir.y, dz: dir.z, speed: 0.15, isEn: true });
+                document.querySelector('#bullets-group').appendChild(eb);
             }
         });
 
-        function takeDamage(amount) {
+        function hitPlayer(amt = 10) {
             if (!game.active) return;
-            game.hp -= amount;
+            game.hp -= amt;
+            playSound(150, 'sawtooth', 0.1); // Звук боли
             updateHUD();
-            
-            // Визуальный эффект
-            const flash = document.querySelector('#damage-flash');
-            flash.setAttribute('visible', true);
-            flash.setAttribute('material', 'opacity', 0.4);
-            setTimeout(() => flash.setAttribute('material', 'opacity', 0), 100);
-            
-            document.querySelector('#global-snd-hit').components.sound.playSound();
-
-            if (game.hp <= 0) gameOver();
+            if (game.hp <= 0) die();
         }
 
         function startGame() {
-            game.active = true;
-            game.hp = 100;
-            game.level = 1;
+            game.active = true; game.hp = 100; game.lvl = 1;
             document.querySelector('#menu').setAttribute('visible', false);
-            generateLevel();
+            spawn();
         }
 
-        function generateLevel() {
-            const container = document.querySelector('#enemies-container');
+        function spawn() {
+            let container = document.querySelector('#enemies-group');
             container.innerHTML = '';
-            game.enemies = 3 + game.level;
-            
+            game.enemies = 2 + game.lvl;
             for (let i = 0; i < game.enemies; i++) {
-                const en = document.createElement('a-entity');
+                let en = document.createElement('a-entity');
                 en.classList.add('enemy');
-                const isShooter = Math.random() > 0.6;
-                en.setAttribute('geometry', {primitive: 'cone', radiusBottom: 0.4, height: 1.5});
-                en.setAttribute('material', {color: isShooter ? '#0077FF' : '#FF0000'});
-                
-                const angle = Math.random() * Math.PI * 2;
-                const dist = 15 + Math.random() * 5;
-                en.setAttribute('position', { x: Math.sin(angle)*dist, y: 0.75, z: Math.cos(angle)*dist });
-                en.setAttribute('enemy-ai', { type: isShooter ? 'shooter' : 'chaser', speed: 0.02 + (game.level*0.005) });
+                let isS = Math.random() > 0.5;
+                en.setAttribute('geometry', {primitive: isS ? 'box' : 'cone', height: 1.5, radiusBottom: 0.5});
+                en.setAttribute('material', {color: isS ? 'blue' : 'red'});
+                let a = Math.random() * Math.PI * 2;
+                let d = 12 + Math.random() * 5;
+                en.setAttribute('position', {x: Math.sin(a)*d, y: 0.75, z: Math.cos(a)*d});
+                en.setAttribute('enemy-behavior', {type: isS ? 'shooter' : 'chaser'});
                 container.appendChild(en);
             }
             updateHUD();
         }
 
         function nextLevel() {
-            game.level++;
-            game.hp = Math.min(game.hp + 20, 100); // Лечим при переходе
-            generateLevel();
+            game.lvl++;
+            game.hp = Math.min(game.hp + 25, 100);
+            spawn();
         }
 
         function updateHUD() {
-            const hud = document.querySelector('#hud');
-            hud.setAttribute('value', `HP: ${Math.ceil(game.hp)} | LEVEL: ${game.level} | ENEMIES: ${game.enemies}`);
-            hud.setAttribute('color', game.hp < 30 ? 'red' : '#00FF00');
+            document.querySelector('#hud').setAttribute('value', `HP: ${Math.ceil(game.hp)} | LVL: ${game.lvl} | ENEMIES: ${game.enemies}`);
         }
 
-        function gameOver() {
+        function die() {
             game.active = false;
-            document.querySelector('#enemies-container').innerHTML = '';
+            document.querySelector('#enemies-group').innerHTML = '';
             document.querySelector('#menu').setAttribute('visible', true);
-            document.querySelector('#menu-text').setAttribute('value', `GAME OVER\nLevel reached: ${game.level}\n\nPull Trigger to Restart`);
+            document.querySelector('#hud').setAttribute('value', "GAME OVER - TRIGGER TO RESTART");
         }
     </script>
 </body>
