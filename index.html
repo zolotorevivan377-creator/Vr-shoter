@@ -1,160 +1,161 @@
 <!DOCTYPE html>
 <html>
-  <head>
+<head>
     <meta charset="utf-8">
-    <title>VR Procedural Shooter - Meta Quest</title>
+    <title>VR Procedural Shooter - WebXR</title>
     <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-physics-system@v4.2.2/dist/aframe-physics-system.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/gh/donmccurdy/aframe-extras@v7.0.0/dist/aframe-extras.min.js"></script>
-  </head>
-  <body>
-    <a-scene physics="debug: false; gravity: -9.8">
-      
-      <a-assets>
-        <audio id="shoot-snd" src="https://cdn.aframe.io/360-video/click.mp3"></audio>
-        <audio id="level-snd" src="https://cdn.aframe.io/art-gallery/audio/01.mp3"></audio>
-      </a-assets>
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.0.0/dist/aframe-extras.min.js"></script>
+</head>
+<body>
 
-      <a-sky color="#111"></a-sky>
-      <a-ambient-light intensity="0.5"></a-ambient-light>
-      <a-directional-light position="1 1 1"></a-directional-light>
-
-      <a-entity id="rig" movement-controls="controls: gamepad" kinematic-body>
-        <a-entity camera position="0 1.6 0" look-controls></a-entity>
-        <a-entity id="right-hand" oculus-touch-controls="hand: right" shooter-controls></a-entity>
-        <a-entity oculus-touch-controls="hand: left"></a-entity>
-      </a-entity>
-
-      <a-entity id="level-container"></a-entity>
-
-    </a-scene>
-
-    <script>
-      // 1. ЛОГИКА ГЕНЕРАЦИИ УРОВНЯ (Лабиринт)
-      const MAP_SIZE = 10;
-      const WALL_SIZE = 4;
-
-      function generateLevel() {
-        const container = document.querySelector('#level-container');
-        container.innerHTML = ''; // Очистка старого уровня
-        
-        // Создаем пол
-        const floor = document.createElement('a-plane');
-        floor.setAttribute('rotation', '-90 0 0');
-        floor.setAttribute('width', MAP_SIZE * WALL_SIZE);
-        floor.setAttribute('height', MAP_SIZE * WALL_SIZE);
-        floor.setAttribute('color', '#333');
-        floor.setAttribute('static-body', '');
-        container.appendChild(floor);
-
-        // Генерация случайных стен
-        for (let x = 0; x < MAP_SIZE; x++) {
-          for (let z = 0; z < MAP_SIZE; z++) {
-            if (Math.random() > 0.7 && (x !== 0 || z !== 0)) { // Оставляем центр свободным
-              const wall = document.createElement('a-box');
-              wall.setAttribute('position', `${(x - MAP_SIZE/2) * WALL_SIZE} ${WALL_SIZE/2} ${(z - MAP_SIZE/2) * WALL_SIZE}`);
-              wall.setAttribute('width', WALL_SIZE);
-              wall.setAttribute('height', WALL_SIZE);
-              wall.setAttribute('depth', WALL_SIZE);
-              wall.setAttribute('color', '#555');
-              wall.setAttribute('static-body', '');
-              container.appendChild(wall);
-            }
-          }
-        }
-
-        // Спавн врагов (3-5 штук)
-        const enemyCount = 3 + Math.floor(Math.random() * 3);
-        for(let i=0; i<enemyCount; i++) {
-          spawnEnemy();
-        }
-      }
-
-      // 2. ВРАГИ (ИИ и коллизии)
-      function spawnEnemy() {
-        const enemy = document.createElement('a-sphere');
-        enemy.setAttribute('class', 'enemy');
-        enemy.setAttribute('radius', '0.5');
-        enemy.setAttribute('color', '#ff0000');
-        enemy.setAttribute('dynamic-body', 'shape: sphere; mass: 1');
-        
-        const x = (Math.random() - 0.5) * MAP_SIZE * WALL_SIZE;
-        const z = (Math.random() - 0.5) * MAP_SIZE * WALL_SIZE;
-        enemy.setAttribute('position', `${x} 1 ${z}`);
-
-        // Простой ИИ: движение в сторону игрока
-        enemy.addEventListener('body-loaded', () => {
-          setInterval(() => {
-            if (!enemy.parentNode) return;
-            const playerPos = document.querySelector('[camera]').object3D.getWorldPosition(new THREE.Vector3());
-            const enemyPos = enemy.object3D.position;
-            const direction = new THREE.Vector3().subVectors(playerPos, enemyPos).normalize();
-            enemy.body.velocity.set(direction.x * 2, 0, direction.z * 2);
-          }, 100);
-        });
-
-        document.querySelector('#level-container').appendChild(enemy);
-      }
-
-      // 3. СТРЕЛЬБА
-      AFRAME.registerComponent('shooter-controls', {
+<script>
+    // 1. Компонент генерации лабиринта и логики уровня
+    AFRAME.registerComponent('game-manager', {
         init: function () {
-          this.el.addEventListener('triggerdown', () => {
-            this.shoot();
-          });
+            this.level = 1;
+            this.enemiesCount = 0;
+            this.sceneEl = this.el;
+            this.startLevel();
+            
+            // Слушаем событие смерти врага
+            this.el.addEventListener('enemy-down', () => {
+                this.enemiesCount--;
+                if (this.enemiesCount <= 0) {
+                    this.nextLevel();
+                }
+            });
+        },
+
+        nextLevel: function() {
+            this.level++;
+            // Звук завершения уровня
+            this.el.components.sound__win.playSound();
+            setTimeout(() => this.startLevel(), 2000);
+        },
+
+        startLevel: function() {
+            // Очистка старых объектов
+            const oldEntities = document.querySelectorAll('.generated');
+            oldEntities.forEach(e => e.parentNode.removeChild(e));
+
+            const size = 10 + (this.level * 2); // Карта растет с уровнем
+            this.enemiesCount = 3 + this.level;
+
+            // Генерация стен (случайная сетка)
+            for (let i = 0; i < size; i++) {
+                for (let j = 0; j < size; j++) {
+                    if (Math.random() > 0.8 && (i > 2 || j > 2)) {
+                        let wall = document.createElement('a-box');
+                        wall.setAttribute('position', `${i * 4 - size*2} 1.5 ${j * 4 - size*2}`);
+                        wall.setAttribute('width', '4');
+                        wall.setAttribute('height', '3');
+                        wall.setAttribute('depth', '4');
+                        wall.setAttribute('static-body', '');
+                        wall.setAttribute('color', '#333');
+                        wall.classList.add('generated');
+                        this.sceneEl.appendChild(wall);
+                    }
+                }
+            }
+
+            // Спавн врагов
+            for (let i = 0; i < this.enemiesCount; i++) {
+                this.spawnEnemy(size);
+            }
+
+            // Сброс позиции игрока
+            const player = document.querySelector('#rig');
+            player.setAttribute('position', '0 0 0');
+        },
+
+        spawnEnemy: function(mapSize) {
+            let enemy = document.createElement('a-entity');
+            enemy.setAttribute('class', 'generated enemy');
+            enemy.setAttribute('geometry', 'primitive: capsule; radius: 0.5; height: 1.8');
+            enemy.setAttribute('material', 'color: red');
+            
+            let x = (Math.random() - 0.5) * mapSize * 3;
+            let z = (Math.random() - 0.5) * mapSize * 3;
+            
+            enemy.setAttribute('position', `${x} 0.9 ${z}`);
+            enemy.setAttribute('enemy-ai', '');
+            this.sceneEl.appendChild(enemy);
+        }
+    });
+
+    // 2. ИИ Врага и коллизии пуль
+    AFRAME.registerComponent('enemy-ai', {
+        tick: function (time, deltaTime) {
+            const player = document.querySelector('#camera').object3D;
+            const enemy = this.el.object3D;
+            
+            // Простое движение в сторону игрока
+            let direction = new THREE.Vector3();
+            direction.subVectors(player.position, enemy.position).normalize();
+            direction.y = 0;
+            
+            const speed = 0.002 * deltaTime;
+            this.el.object3D.position.addScaledVector(direction, speed);
+            this.el.object3D.lookAt(player.position);
+        }
+    });
+
+    // 3. Логика стрельбы (Trigger на контроллере)
+    AFRAME.registerComponent('shooter', {
+        init: function () {
+            this.el.addEventListener('triggerdown', () => {
+                this.shoot();
+            });
         },
         shoot: function () {
-          // Звук выстрела
-          document.querySelector('#shoot-snd').play();
+            // Звук выстрела
+            this.el.components.sound.playSound();
 
-          // Создаем пулю
-          const bullet = document.createElement('a-sphere');
-          bullet.setAttribute('radius', '0.1');
-          bullet.setAttribute('color', 'yellow');
-          
-          const weaponPos = this.el.object3D.position;
-          const worldDirection = new THREE.Vector3(0, 0, -1);
-          worldDirection.applyQuaternion(this.el.object3D.quaternion);
-          
-          bullet.setAttribute('position', this.el.getAttribute('position'));
-          bullet.setAttribute('dynamic-body', 'mass: 0.1');
-          document.querySelector('a-scene').appendChild(bullet);
-
-          bullet.addEventListener('body-loaded', () => {
-            bullet.body.velocity.set(worldDirection.x * 20, worldDirection.y * 20, worldDirection.z * 20);
-          });
-
-          // Коллизия пули с врагом
-          bullet.addEventListener('collide', (e) => {
-            if (e.detail.body.el.classList.contains('enemy')) {
-              e.detail.body.el.parentNode.removeChild(e.detail.body.el);
-              bullet.parentNode.removeChild(bullet);
-              checkLevelClear();
+            const raycaster = this.el.components.raycaster;
+            const intersection = raycaster.getIntersection(document.querySelector('.enemy'));
+            
+            if (intersection) {
+                const target = intersection.object.el;
+                target.parentNode.removeChild(target);
+                this.el.sceneEl.emit('enemy-down');
             }
-          });
-
-          // Удаление пули через 2 сек
-          setTimeout(() => { if(bullet.parentNode) bullet.parentNode.removeChild(bullet); }, 2000);
         }
-      });
+    });
+</script>
 
-      // 4. ПРОВЕРКА ЗАВЕРШЕНИЯ УРОВНЯ
-      function checkLevelClear() {
-        const enemies = document.querySelectorAll('.enemy');
-        if (enemies.length === 0) {
-          document.querySelector('#level-snd').play();
-          console.log("Уровень зачищен! Переход...");
-          setTimeout(() => {
-            generateLevel();
-            document.querySelector('#rig').setAttribute('position', '0 0 0');
-          }, 1500);
-        }
-      }
+<a-scene game-manager 
+         physics="debug: false; gravity: -9.8" 
+         renderer="antialias: true"
+         sound__win="src: url(https://cdn.freesound.org/previews/258/258142_4486188-lq.mp3); poolSize: 1">
+    
+    <a-assets>
+        <audio id="shot-snd" src="https://cdn.freesound.org/previews/522/522430_10023450-lq.mp3"></audio>
+    </a-assets>
 
-      // Запуск игры
-      window.onload = () => {
-        generateLevel();
-      };
-    </script>
-  </body>
+    <a-sky color="#111"></a-sky>
+    <a-ambient-light intensity="0.5"></a-ambient-light>
+    <a-directional-light position="1 4 3"></a-directional-light>
+
+    <a-plane rotation="-90 0 0" width="1000" height="1000" color="#222" static-body></a-plane>
+
+    <a-entity id="rig" movement-controls="fly: false; speed: 0.2" kinematic-body>
+        <a-entity id="camera" camera position="0 1.6 0" look-controls></a-entity>
+        
+        <a-entity id="right-hand" 
+                  laser-controls="hand: right" 
+                  raycaster="objects: .enemy, .generated; far: 50; showLine: true"
+                  line="color: red; opacity: 0.5"
+                  shooter
+                  sound="src: #shot-snd; on: click; poolSize: 5">
+            <a-box width="0.05" height="0.05" depth="0.2" color="grey" position="0 0 -0.1"></a-box>
+        </a-entity>
+
+        <a-entity oculus-touch-controls="hand: left"></a-entity>
+    </a-entity>
+
+    <a-text id="msg" value="CLEAR THE AREA" position="0 2.5 -3" align="center" color="yellow"></a-text>
+
+</a-scene>
+
+</body>
 </html>
