@@ -54,26 +54,26 @@
 
     // Игровой цикл
     function animate() {
-      requestAnimationFrame(animate);
+      renderer.setAnimationLoop(function () {
+        // Обновление противников
+        enemies.forEach(enemy => {
+          enemy.position.x += Math.sin(Date.now() * 0.001) * 0.01;
+          enemy.position.z += Math.cos(Date.now() * 0.001) * 0.01;
+        });
 
-      // Обновление противников
-      enemies.forEach(enemy => {
-        enemy.position.x += Math.sin(Date.now() * 0.001) * 0.01;
-        enemy.position.z += Math.cos(Date.now() * 0.001) * 0.01;
+        // Обновление контроллеров
+        controller1.update();
+        controller2.update();
+
+        // Проверка столкновений и выстрелы
+        if (controller1.getButtonState('trigger')) {
+          shootSound.play();
+          // Логика стрельбы
+        }
+
+        // Рендеринг сцены
+        renderer.render(scene, camera);
       });
-
-      // Обновление контроллеров
-      controller1.update();
-      controller2.update();
-
-      // Проверка столкновений и выстрелы
-      if (controller1.getButtonState('trigger')) {
-        shootSound.play();
-        // Логика стрельбы
-      }
-
-      // Рендеринг сцены
-      renderer.render(scene, camera);
     }
 
     // Генерация уровня
