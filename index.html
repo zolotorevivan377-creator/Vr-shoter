@@ -2,202 +2,211 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>VR Quest Shooter: Full World</title>
+    <title>VR Quest Shooter: Ultra Stable</title>
     <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
     <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.2.0/dist/aframe-extras.min.js"></script>
 </head>
 <body>
-    <a-scene background="color: #020210">
+    <a-scene>
         <a-assets>
             <a-mixin id="bullet" geometry="primitive: sphere; radius: 0.05" material="color: #00ffff; shader: flat"></a-mixin>
             <a-mixin id="en-bullet" geometry="primitive: sphere; radius: 0.1" material="color: #ff6600; shader: flat"></a-mixin>
         </a-assets>
 
-        <a-plane rotation="-90 0 0" width="100" height="100" material="src: url(https://cdn.aframe.io/a-blast/assets/images/floor.png); repeat: 50 50; color: #333"></a-plane>
-        <a-sky color="#050515"></a-sky>
-        <a-grid position="0 0.01 0" width="100" height="100" material="opacity: 0.2; color: #4CC3D9"></a-grid>
-
-        <a-light type="ambient" color="#445" intensity="0.8"></a-light>
-        <a-light type="directional" color="#fff" intensity="0.6" position="-1 2 1"></a-light>
+        <a-sky color="#0a0a20"></a-sky>
+        <a-plane rotation="-90 0 0" width="100" height="100" color="#111"></a-plane>
+        <a-entity line="start: -50 0.01 -50; end: 50 0.01 -50; color: #333" position="0 0 0"></a-entity>
+        
+        <a-light type="ambient" intensity="0.6"></a-light>
+        <a-light type="directional" position="1 5 2" intensity="0.8"></a-light>
 
         <a-entity id="rig" movement-controls="speed: 0.2">
             <a-camera id="camera" look-controls position="0 1.6 0">
-                <a-text id="hud" value="TRIGGER TO START" position="0 -0.5 -1" scale="0.4 0.4 0.4" align="center" color="#00FF00"></a-text>
-                <a-entity id="menu" position="0 0.2 -1.2">
-                    <a-text value="VR SHOOTER\n\n- Move: Left Stick\n- Shoot: Right Trigger" align="center" width="3"></a-text>
-                </a-entity>
+                <a-text id="hud" value="READY?" position="0 -0.5 -1" scale="0.4 0.4 0.4" align="center" color="#0f0"></a-text>
+                <a-text id="announcer" value="CLICK TRIGGER TO START" position="0 0.2 -1.5" scale="1 1 1" align="center" color="#fff"></a-text>
             </a-camera>
 
             <a-entity oculus-touch-controls="hand: left"></a-entity>
             <a-entity id="rightHand" oculus-touch-controls="hand: right" shooter-logic>
-                <a-box width="0.05" height="0.05" depth="0.2" position="0 0 -0.1" material="color: #555"></a-box>
+                <a-box width="0.05" height="0.05" depth="0.2" color="#444" position="0 0 -0.1"></a-box>
             </a-entity>
         </a-entity>
 
-        <a-entity id="walls-group"></a-entity>
-        <a-entity id="enemies-group"></a-entity>
-        <a-entity id="bullets-group"></a-entity>
+        <a-entity id="walls-container"></a-entity>
+        <a-entity id="enemies-container"></a-entity>
+        <a-entity id="bullets-container"></a-entity>
     </a-scene>
 
     <script>
-        let game = { active: false, hp: 100, lvl: 1, enemies: 0 };
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-
-        function playSound(f, t, d) {
-            const o = audioCtx.createOscillator();
-            const g = audioCtx.createGain();
-            o.type = t; o.frequency.value = f;
+        let game = { active: false, hp: 100, lvl: 1, enemiesLeft: 0 };
+        const cameraEl = document.querySelector('#camera');
+        
+        // Звуковой движок
+        let audioCtx;
+        function playBeep(f, d) {
+            if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            let o = audioCtx.createOscillator();
+            let g = audioCtx.createGain();
+            o.frequency.setValueAtTime(f, audioCtx.currentTime);
             o.connect(g); g.connect(audioCtx.destination);
-            o.start(); g.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + d);
+            o.start(); g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + d);
             o.stop(audioCtx.currentTime + d);
         }
 
+        // Логика стрельбы
         AFRAME.registerComponent('shooter-logic', {
             init: function () {
                 this.el.addEventListener('triggerdown', () => {
-                    if (!game.active) startGame(); else this.shoot();
+                    if (!game.active) startNewGame();
+                    else this.fire();
                 });
             },
-            shoot: function () {
-                playSound(500, 'square', 0.1);
+            fire: function() {
+                playBeep(600, 0.1);
                 const b = document.createElement('a-entity');
                 b.setAttribute('mixin', 'bullet');
-                const pos = new THREE.Vector3();
+                let pos = new THREE.Vector3();
                 this.el.object3D.getWorldPosition(pos);
-                const dir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.el.object3D.getWorldQuaternion(new THREE.Quaternion()));
+                let dir = new THREE.Vector3(0, 0, -1).applyQuaternion(this.el.object3D.getWorldQuaternion(new THREE.Quaternion()));
                 b.setAttribute('position', pos);
-                b.setAttribute('move-bullet', { dx: dir.x, dy: dir.y, dz: dir.z, isEn: false });
-                document.querySelector('#bullets-group').appendChild(b);
+                b.setAttribute('bullet-fly', { dx: dir.x, dy: dir.y, dz: dir.z, isEnemy: false });
+                document.querySelector('#bullets-container').appendChild(b);
             }
         });
 
-        AFRAME.registerComponent('move-bullet', {
-            schema: { dx: {type:'number'}, dy: {type:'number'}, dz: {type:'number'}, speed: {default: 0.6}, isEn: {default: false} },
+        // Полет пули и коллизии
+        AFRAME.registerComponent('bullet-fly', {
+            schema: { dx: {type:'number'}, dy: {type:'number'}, dz: {type:'number'}, isEnemy: {default: false} },
             tick: function () {
-                let p = this.el.getAttribute('position');
-                p.x += this.data.dx * this.data.speed;
-                p.y += this.data.dy * this.data.speed;
-                p.z += this.data.dz * this.data.speed;
-                this.el.setAttribute('position', p);
+                let p = this.el.object3D.position;
+                p.x += this.data.dx * 0.6; p.y += this.data.dy * 0.6; p.z += this.data.dz * 0.6;
 
-                // Коллизия с врагами
-                if (!this.data.isEn) {
+                // Проверка столкновения с игроком (World Distance)
+                if (this.data.isEnemy) {
+                    let playerWorldPos = new THREE.Vector3();
+                    cameraEl.object3D.getWorldPosition(playerWorldPos);
+                    let dist = this.el.object3D.position.distanceTo(playerWorldPos);
+                    
+                    if (dist < 0.4) { // Радиус игрока
+                        damagePlayer(15);
+                        this.removeSelf();
+                    }
+                } else {
+                    // Попадание во врагов
                     document.querySelectorAll('.enemy').forEach(en => {
-                        if (new THREE.Vector3(p.x, p.y, p.z).distanceTo(en.object3D.position) < 0.7) {
+                        if (this.el.object3D.position.distanceTo(en.object3D.position) < 0.8) {
                             en.parentNode.removeChild(en);
-                            this.el.parentNode && this.el.parentNode.removeChild(this.el);
-                            game.enemies--; updateHUD();
-                            if(game.enemies <= 0) nextLevel();
+                            this.removeSelf();
+                            game.enemiesLeft--;
+                            updateHUD();
+                            if(game.enemiesLeft <= 0) levelUp();
                         }
                     });
-                } else {
-                    // Коллизия с игроком
-                    if (new THREE.Vector3(p.x, p.y, p.z).distanceTo(document.querySelector('#camera').object3D.position) < 0.5) {
-                        hitPlayer(10);
-                        this.el.parentNode && this.el.parentNode.removeChild(this.el);
-                    }
                 }
+
                 // Коллизия со стенами
                 document.querySelectorAll('.wall').forEach(w => {
-                    if (new THREE.Vector3(p.x, p.y, p.z).distanceTo(w.object3D.position) < 1.2) {
-                        this.el.parentNode && this.el.parentNode.removeChild(this.el);
-                    }
+                    if (this.el.object3D.position.distanceTo(w.object3D.position) < 1.1) this.removeSelf();
                 });
-                if (Math.abs(p.z) > 40) this.el.parentNode && this.el.parentNode.removeChild(this.el);
-            }
+
+                if (Math.abs(p.z) > 50 || Math.abs(p.x) > 50) this.removeSelf();
+            },
+            removeSelf: function() { if(this.el.parentNode) this.el.parentNode.removeChild(this.el); }
         });
 
+        // ИИ Врага
         AFRAME.registerComponent('enemy-ai', {
-            schema: { type: {default: 'chaser'}, lastShoot: {default: 0} },
-            tick: function (time) {
-                if (!game.active) return;
-                let pp = document.querySelector('#camera').object3D.position;
+            schema: { type: {default: 'chaser'}, lastShot: {default: 0} },
+            tick: function (t) {
+                if(!game.active) return;
+                let pp = new THREE.Vector3(); cameraEl.object3D.getWorldPosition(pp);
                 let ep = this.el.object3D.position;
-                let dist = new THREE.Vector3(ep.x, 0, ep.z).distanceTo(new THREE.Vector3(pp.x, 0, pp.z));
+                let dist = ep.distanceTo(pp);
 
                 let angle = Math.atan2(pp.x - ep.x, pp.z - ep.z);
-                if (this.data.type === 'chaser') {
-                    ep.x += Math.sin(angle) * 0.03; ep.z += Math.cos(angle) * 0.03;
-                    if (dist < 1.1) hitPlayer(0.3);
+                if(this.data.type === 'chaser') {
+                    ep.x += Math.sin(angle) * 0.04; ep.z += Math.cos(angle) * 0.04;
+                    if(dist < 1.2) damagePlayer(0.2); // Урон при касании
                 } else {
-                    if (dist > 8) { ep.x += Math.sin(angle)*0.02; ep.z += Math.cos(angle)*0.02; }
-                    else if (time - this.data.lastShoot > 2500) {
-                        this.fire(pp, ep); this.data.lastShoot = time;
+                    if(dist > 7) { ep.x += Math.sin(angle)*0.03; ep.z += Math.cos(angle)*0.03; }
+                    else if(t - this.data.lastShot > 3000) {
+                        this.shoot(pp, ep); this.data.lastShot = t;
                     }
                 }
-                this.el.setAttribute('position', ep);
             },
-            fire: function(pp, ep) {
-                let eb = document.createElement('a-entity');
-                eb.setAttribute('mixin', 'en-bullet');
+            shoot: function(pp, ep) {
+                let b = document.createElement('a-entity');
+                b.setAttribute('mixin', 'en-bullet');
                 let dir = new THREE.Vector3().subVectors(pp, ep).normalize();
-                eb.setAttribute('position', {x: ep.x, y: 1.2, z: ep.z});
-                eb.setAttribute('move-bullet', { dx: dir.x, dy: dir.y, dz: dir.z, speed: 0.15, isEn: true });
-                document.querySelector('#bullets-group').appendChild(eb);
+                b.setAttribute('position', {x: ep.x, y: 1.2, z: ep.z});
+                b.setAttribute('bullet-fly', { dx: dir.x, dy: dir.y, dz: dir.z, isEnemy: true });
+                document.querySelector('#bullets-container').appendChild(b);
             }
         });
 
-        function hitPlayer(a) {
-            game.hp -= a; playSound(100, 'sawtooth', 0.1); updateHUD();
-            if (game.hp <= 0) die();
+        function damagePlayer(amt) {
+            game.hp -= amt; playBeep(150, 0.1); updateHUD();
+            if(game.hp <= 0) gameOver();
         }
 
-        function startGame() {
+        function startNewGame() {
             game.active = true; game.hp = 100; game.lvl = 1;
-            document.querySelector('#menu').setAttribute('visible', false);
-            generateMap();
+            document.querySelector('#announcer').setAttribute('visible', false);
+            buildLevel();
         }
 
-        function generateMap() {
-            // Стены
-            let wGrp = document.querySelector('#walls-group');
-            wGrp.innerHTML = '';
-            for(let i=0; i<15; i++) {
+        function buildLevel() {
+            // Очистка
+            document.querySelector('#enemies-container').innerHTML = '';
+            let wCont = document.querySelector('#walls-container');
+            wCont.innerHTML = '';
+
+            // Стены (Колонны)
+            for(let i=0; i<12; i++) {
                 let w = document.createElement('a-box');
                 w.className = 'wall';
-                w.setAttribute('width', 2); w.setAttribute('height', 4); w.setAttribute('depth', 2);
-                w.setAttribute('position', {x: (Math.random()-0.5)*30, y: 2, z: (Math.random()-0.5)*30});
-                w.setAttribute('material', 'color', '#445');
-                // Не ставим стену на игрока
-                if (w.object3D.position.length() > 5) wGrp.appendChild(w);
+                w.setAttribute('position', {x: (Math.random()-0.5)*25, y: 2, z: (Math.random()-0.5)*25});
+                w.setAttribute('height', 4); w.setAttribute('width', 1.5); w.setAttribute('depth', 1.5);
+                w.setAttribute('color', '#fff'); // БЕЛЫЕ СТЕНЫ ДЛЯ ВИДИМОСТИ
+                if(w.getAttribute('position').z > -3 && w.getAttribute('position').z < 3) continue; // Не спавнить на игроке
+                wCont.appendChild(w);
             }
-            spawnEnemies();
-        }
 
-        function spawnEnemies() {
-            let container = document.querySelector('#enemies-group');
-            container.innerHTML = '';
-            game.enemies = 3 + game.lvl;
-            for (let i = 0; i < game.enemies; i++) {
+            // Враги
+            game.enemiesLeft = 2 + game.lvl;
+            for(let i=0; i<game.enemiesLeft; i++) {
                 let en = document.createElement('a-entity');
-                en.classList.add('enemy');
+                en.className = 'enemy';
                 let isS = Math.random() > 0.5;
-                en.setAttribute('geometry', {primitive: isS ? 'box' : 'cone', height: 1.5});
-                en.setAttribute('material', {color: isS ? '#33f' : '#f33'});
-                let a = Math.random() * Math.PI * 2;
-                let d = 15 + Math.random() * 5;
-                en.setAttribute('position', {x: Math.sin(a)*d, y: 0.75, z: Math.cos(a)*d});
+                en.setAttribute('geometry', {primitive: isS ? 'box' : 'cone', height: 1.6});
+                en.setAttribute('material', 'color', isS ? '#33f' : '#f33');
+                let a = Math.random()*Math.PI*2;
+                en.setAttribute('position', {x: Math.sin(a)*15, y: 0.8, z: Math.cos(a)*15});
                 en.setAttribute('enemy-ai', {type: isS ? 'shooter' : 'chaser'});
-                container.appendChild(en);
+                document.querySelector('#enemies-container').appendChild(en);
             }
             updateHUD();
         }
 
-        function nextLevel() {
-            game.lvl++; game.hp = Math.min(game.hp + 30, 100);
-            generateMap();
+        function levelUp() {
+            game.lvl++; game.hp = Math.min(game.hp + 40, 100);
+            let ann = document.querySelector('#announcer');
+            ann.setAttribute('value', 'LEVEL COMPLETED!');
+            ann.setAttribute('visible', true);
+            setTimeout(() => {
+                ann.setAttribute('visible', false);
+                buildLevel();
+            }, 2000);
         }
 
         function updateHUD() {
-            document.querySelector('#hud').setAttribute('value', `HP: ${Math.ceil(game.hp)} | LVL: ${game.lvl} | ENEMIES: ${game.enemies}`);
+            document.querySelector('#hud').setAttribute('value', `HP: ${Math.ceil(game.hp)} | LVL: ${game.lvl} | ENEMIES: ${game.enemiesLeft}`);
         }
 
-        function die() {
+        function gameOver() {
             game.active = false;
-            document.querySelector('#enemies-group').innerHTML = '';
-            document.querySelector('#walls-group').innerHTML = '';
-            document.querySelector('#menu').setAttribute('visible', true);
-            document.querySelector('#hud').setAttribute('value', "GAME OVER - TRIGGER TO RESTART");
+            document.querySelector('#announcer').setAttribute('value', 'GAME OVER\nTRIGGER TO RESTART');
+            document.querySelector('#announcer').setAttribute('visible', true);
         }
     </script>
 </body>
