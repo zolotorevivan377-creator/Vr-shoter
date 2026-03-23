@@ -1,1 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>VR Shooter</title>
+  <style>
+    body, canvas {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+  <script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.126.1/build/three.module.js';
+    import { OrbitControls } from 'https://unpkg.com/three@0.126.1/examples/jsm/controls/OrbitControls.js';
+    import { WebXRController } from 'https://unpkg.com/three@0.126.1/examples/jsm/webxr/WebXRController.js';
+    import { XRControllerModelFactory } from 'https://unpkg.com/three@0.126.1/examples/jsm/webxr/XRControllerModelFactory.js';
 
+    // Настройка сцены и рендера
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // Настройка контроллера и звука
+    const controller1 = new WebXRController();
+    const controller2 = new WebXRController();
+    const controllerModelFactory = new XRControllerModelFactory();
+
+    // Генерация уровня
+    let enemies = [];
+    let level = 1;
+    generateLevel();
+
+    // Игровой цикл
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // Обновление противников
+      enemies.forEach(enemy => {
+        enemy.position.x += Math.sin(Date.now() * 0.001) * 0.01;
+        enemy.position.z += Math.cos(Date.now() * 0.001) * 0.01;
+      });
+
+      // Обновление контроллеров
+      controller1.update();
+      controller2.update();
+
+      // Рендеринг сцены
+      renderer.render(scene, camera);
+    }
+
+    // Генерация уровня
+    function generateLevel() {
+      // Создание случайных врагов
+      for (let i = 0; i < level * 5; i++) {
+        const enemy = new THREE.Mesh(
+          new THREE.BoxGeometry(1, 1, 1),
+          new THREE.MeshBasicMaterial({ color: 0xff0000 })
+        );
+        enemy.position.set(
+          Math.random() * 20 - 10,
+          1,
+          Math.random() * 20 - 10
+        );
+        scene.add(enemy);
+        enemies.push(enemy);
+      }
+
+      // Обновление информации об уровне
+      console.log(`Level ${level} started`);
+    }
+
+    // Запуск игры
+    navigator.xr.requestSession('immersive-vr').then((session) => {
+      renderer.xr.setSession(session);
+      animate();
+    });
+  </script>
+</body>
+</html>
